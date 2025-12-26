@@ -1,5 +1,7 @@
 PRAGMA foreign_keys = ON;
 
+-- Create table to hold the machines
+-- # I may add more complicated location information later with a location type
 CREATE TABLE IF NOT EXISTS machines (
   machine_id     TEXT PRIMARY KEY,
   name           TEXT NOT NULL,
@@ -9,6 +11,7 @@ CREATE TABLE IF NOT EXISTS machines (
     DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
+-- Create table to store metric types
 CREATE TABLE IF NOT EXISTS metrics (
   metric_key     TEXT PRIMARY KEY,
   display_name   TEXT NOT NULL,
@@ -17,6 +20,8 @@ CREATE TABLE IF NOT EXISTS metrics (
     DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
+-- Create table for storing individual metrics 
+-- Each reading has unique pairings of (machine_id, metric_key, ts_ms)
 CREATE TABLE IF NOT EXISTS readings (
   machine_id     TEXT NOT NULL,
   metric_key     TEXT NOT NULL,
@@ -32,6 +37,7 @@ CREATE TABLE IF NOT EXISTS readings (
 CREATE INDEX IF NOT EXISTS idx_readings_machine_metric_ts
 ON readings(machine_id, metric_key, ts_ms DESC);
 
+-- Latest readings table for quick retrieval
 CREATE TABLE IF NOT EXISTS latest_readings (
   machine_id   TEXT NOT NULL,
   metric_key   TEXT NOT NULL,
@@ -44,6 +50,7 @@ CREATE TABLE IF NOT EXISTS latest_readings (
   FOREIGN KEY (metric_key) REFERENCES metrics(metric_key) ON DELETE CASCADE
 );
 
+-- Update the latest table with the latest readings
 CREATE TRIGGER IF NOT EXISTS trg_readings_upsert_latest
 AFTER INSERT ON readings
 BEGIN
