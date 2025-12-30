@@ -80,3 +80,16 @@ curl "http://127.0.0.1:8000/latest?machine_id=m-001"
 - iOS Simulator: http://127.0.0.1:8000
 - Physical device: http://<your-mac-lan-ip>:8000 (same Wi-Fi)
 - If HTTP is blocked, allow it via App Transport Security (dev only)
+
+
+-- 
+IOS App outline
+
+Main metric page 
+<img width="1024" height="1536" alt="DashboardMockup" src="https://github.com/user-attachments/assets/69153500-8042-4dd3-9b43-404d260c153d" />
+
+Drill-in metric page
+<img width="1024" height="1536" alt="DrillInMetricScreen" src="https://github.com/user-attachments/assets/594c9461-7d61-48e7-8e03-0f145ac1fa0f" />
+
+Add metric page
+<img width="1024" height="1536" alt="AddMetricScreen" src="https://github.com/user-attachments/assets/8545ddb2-f34b-40e4-892a-92a8634fa8bd" />
