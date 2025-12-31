@@ -9,13 +9,23 @@ import SwiftUI
 
 struct ContentView: View {
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        NavigationStack {
+            ZStack {
+                VStack {
+                    
+                }
+                
+            }
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Add Metric") {
+                        print("Metric added")
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .paperBackground()
         }
-        .padding()
     }
 }
 
