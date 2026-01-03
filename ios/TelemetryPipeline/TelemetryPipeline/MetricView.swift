@@ -27,7 +27,7 @@ enum MetricSymbol: String, CaseIterable, Identifiable {
         switch self {
         case .none: return ""
         case .thermometer: return "Thermometer"
-        case .gauge: return "Gauge"
+        case .gauge: return "Guage"
         case .waveform: return "Vibration"
         }
     }
@@ -80,7 +80,7 @@ struct AddMetricTopBlock: View {
                                     Image(systemName: "slash.circle")
                                         .font(.system(size: 28, weight: .regular))
                                         .foregroundStyle(navy.opacity(0.8))
-                                    Text("No Icon")
+                                    Text("")
                                         .font(.footnote)
                                         .foregroundStyle(navy.opacity(0.9))
                                 }
@@ -89,10 +89,11 @@ struct AddMetricTopBlock: View {
                                 Image(icon.assetName)
                                     .resizable()
                                     .scaledToFit()
-                                    .padding(14)
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                    .padding(4)
                             }
                         }
-                        .frame(height: 76)
+                        .frame(height: 96)
                         .squiggleBorder(
                             color: navy.opacity(selectedIcon == icon ? 1.0 : 0.65),
                             lineWidth: selectedIcon == icon ? 3.5 : 3,

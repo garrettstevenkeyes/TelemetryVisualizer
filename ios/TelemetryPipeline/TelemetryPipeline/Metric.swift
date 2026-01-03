@@ -25,7 +25,7 @@ struct Metric: Codable, Identifiable {
 }
 
 enum MetricIcon: String, Codable {
-    case gauge = "Gauge"
+    case gauge = "Guage"
     case thermometer = "Thermometer"
     case vibration = "Vibration"
 }
