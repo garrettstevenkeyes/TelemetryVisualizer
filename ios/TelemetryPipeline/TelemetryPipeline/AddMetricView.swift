@@ -45,7 +45,15 @@ struct AddMetricView: View {
                 ToolbarItem(placement: .principal) {
                     Text("Create Metric")
                         .font(.headline)
-                        .foregroundStyle(Color(red: 0.11, green: 0.18, blue: 0.31))
+                        .foregroundStyle(Color.eggshell)
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Save") {
+                        print("Save clicked")
+                    }
+                    .font(.headline)
+                    .foregroundStyle(Color.eggshell)
+                    .accessibilityLabel("Save metric")
                 }
             }
         }
@@ -61,7 +69,7 @@ struct AddMetricTopBlock: View {
     @Binding var selectedIcon: MetricSymbol
 
     // Theme colors (match your mock)
-    private let navy = Color(red: 0.11, green: 0.18, blue: 0.31)
+    private let navy = Color.eggshell
     private let cardFill = Color.white.opacity(0.22)
 
     var body: some View {
@@ -175,7 +183,7 @@ struct AddMetricTopBlock: View {
             RoundedRectangle(cornerRadius: 24)
                 .fill(cardFill)
         )
-        .squiggleBorder(color: navy, lineWidth: 4, cornerRadius: 24, amplitude: 3.0, wavelength: 20)
+        .squiggleCardBorder()
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Metric details")
         .accessibilityHint("Enter the metric name, description, unit, and select an icon.")
@@ -189,7 +197,7 @@ struct AddMetricRange: View {
     let type: RangeType
     
     // Theme colors (match your mock)
-    private let navy = Color(red: 0.11, green: 0.18, blue: 0.31)
+    private let navy = Color.eggshell
     private let cardFill = Color.white.opacity(0.22)
     
     var body: some View {
@@ -243,7 +251,7 @@ struct AddMetricRange: View {
             RoundedRectangle(cornerRadius: 24)
                 .fill(cardFill)
         )
-        .squiggleBorder(color: navy, lineWidth: 4, cornerRadius: 24, amplitude: 3.0, wavelength: 20)
+        .squiggleCardBorder()
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(type.rawValue.capitalized) range")
         .accessibilityHint("Enter minimum and maximum acceptable values for this metric.")
@@ -255,7 +263,7 @@ struct PercentBadAlarm: View {
     @Binding var percentBadThreshold: Float
     
     // Theme colors (match your mock)
-    private let navy = Color(red: 0.11, green: 0.18, blue: 0.31)
+    private let navy = Color.eggshell
     private let cardFill = Color.white.opacity(0.22)
     
     var body: some View {
@@ -293,7 +301,7 @@ struct PercentBadAlarm: View {
             RoundedRectangle(cornerRadius: 24)
                 .fill(cardFill)
         )
-        .squiggleBorder(color: navy, lineWidth: 4, cornerRadius: 24, amplitude: 3.0, wavelength: 20)
+        .squiggleCardBorder()
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Unhealthy Data Threshold")
         .accessibilityHint("Set the percentage threshold that triggers a notification.")
