@@ -8,6 +8,7 @@
 import SwiftUI
 
 struct AddMetricView: View {
+    @Environment(\.dismiss) private var dismiss
     @State private var name: String = ""
     @State private var description: String = ""
     @State private var unit: String = ""
@@ -46,6 +47,14 @@ struct AddMetricView: View {
                     Text("Create Metric")
                         .font(.headline)
                         .foregroundStyle(Color.eggshell)
+                }
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    .font(.headline)
+                    .foregroundStyle(Color.eggshell)
+                    .accessibilityLabel("Cancel")
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Save") {

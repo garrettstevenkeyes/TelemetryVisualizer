@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import SwiftUI
 
 struct Metric: Codable, Identifiable {
     let id: UUID
@@ -28,4 +29,34 @@ enum MetricIcon: String, Codable {
     case gauge = "Guage"
     case thermometer = "Thermometer"
     case vibration = "Vibration"
+}
+
+enum MetricStatus {
+    case normal
+    case warning
+    case alert
+
+    var label: String {
+        switch self {
+        case .normal: return "Normal"
+        case .warning: return "Warning"
+        case .alert: return "Alert"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .normal: return .green
+        case .warning: return .yellow
+        case .alert: return .red
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .normal: return "checkmark.circle.fill"
+        case .warning: return "exclamationmark.triangle.fill"
+        case .alert: return "xmark.octagon.fill"
+        }
+    }
 }
