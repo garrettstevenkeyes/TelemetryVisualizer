@@ -88,7 +88,7 @@ struct AddMetricTopBlock: View {
             Text("Name")
                 .font(.headline)
                 .foregroundStyle(navy)
-                .frame(maxWidth: .infinity, alignment: .center)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
             TextField("", text: $name)
                 .textInputAutocapitalization(.words)
@@ -105,7 +105,7 @@ struct AddMetricTopBlock: View {
             Text("Description")
                 .font(.headline)
                 .foregroundStyle(navy)
-                .frame(maxWidth: .infinity, alignment: .center)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
             TextField("", text: $description)
                 .textInputAutocapitalization(.words)
@@ -121,7 +121,7 @@ struct AddMetricTopBlock: View {
             Text("Icon")
                 .font(.headline)
                 .foregroundStyle(navy)
-                .frame(maxWidth: .infinity, alignment: .center)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
             HStack(spacing: 14) {
                 ForEach(MetricSymbol.allCases) { icon in
@@ -169,7 +169,7 @@ struct AddMetricTopBlock: View {
             Text("Unit")
                 .font(.headline)
                 .foregroundStyle(navy)
-                .frame(maxWidth: .infinity, alignment: .center)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
             TextField("", text: $unit)
                 .textInputAutocapitalization(.never)
@@ -214,7 +214,7 @@ struct AddMetricRange: View {
             Text("\(type.rawValue.capitalized) Range")
                 .font(.headline)
                 .foregroundStyle(navy)
-                .frame(maxWidth: .infinity, alignment: .center)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 6) {
@@ -280,7 +280,7 @@ struct PercentBadAlarm: View {
             Text("Unhealthy Data Threshold")
                 .font(.headline)
                 .foregroundStyle(navy)
-                .frame(maxWidth: .infinity, alignment: .center)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 6) {

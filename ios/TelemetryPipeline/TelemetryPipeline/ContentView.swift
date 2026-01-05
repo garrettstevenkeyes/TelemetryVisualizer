@@ -7,14 +7,32 @@
 
 import SwiftUI
 
+struct MetricSummary: Identifiable, Hashable {
+    let id = UUID()
+    let name: String
+    let status: MetricStatus
+}
+
 struct ContentView: View {
     @State private var isSelectingForDeletion = false
     @State private var showingAddMetric = false
+
+    private var metricSummaries: [MetricSummary] {
+        [
+            MetricSummary(name: "Temperature", status: .normal),
+            MetricSummary(name: "Pressure", status: .warning),
+            MetricSummary(name: "Vibration", status: .alert)
+        ]
+    }
+    
     var body: some View {
         NavigationStack {
             ZStack {
                 ScrollView {
                     VStack(spacing: 18) {
+                        MetricsOverview(metrics: metricSummaries)
+                            .padding(.top, 4)
+
                         GenericMetricTile(
                             metricName: "Temperature",
                             metricReading: 72.5,
@@ -117,8 +135,8 @@ struct GenericMetricTile: View {
 
                     // Secondary status text (optional)
                     Text(status.label)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(status.color)
                 }
 
                 Spacer()
@@ -154,6 +172,120 @@ struct GenericMetricTile: View {
     }
 }
 
+struct MetricsOverview: View {
+    let metrics: [MetricSummary]
+    private let navy = Color.eggshell
+    private let cardFill = Color.white.opacity(0.22)
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Dashboard")
+                    .font(.headline)
+                    .foregroundStyle(navy)
+                Spacer()
+            }
+
+            FlowLayout(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 8) {
+                ForEach(metrics) { metric in
+                    MetricPill(name: metric.name, status: metric.status)
+                }
+            }
+        }
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: 24)
+                .fill(cardFill)
+        )
+        .squiggleCardBorder()
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Overview of metrics and statuses")
+    }
+}
+
+struct MetricPill: View {
+    let name: String
+    let status: MetricStatus
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: status.symbolName)
+                .foregroundStyle(status.color)
+            Text(name)
+                .font(.subheadline)
+                .foregroundStyle(status.color)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            Capsule().fill(status.color.opacity(0.18))
+        )
+        .accessibilityLabel("\(name) \(status.label)")
+    }
+}
+
+struct FlowLayout: Layout {
+    var alignment: HorizontalAlignment = .leading
+    var horizontalSpacing: CGFloat = 8
+    var verticalSpacing: CGFloat = 8
+
+    init(alignment: HorizontalAlignment = .leading, horizontalSpacing: CGFloat = 8, verticalSpacing: CGFloat = 8) {
+        self.alignment = alignment
+        self.horizontalSpacing = horizontalSpacing
+        self.verticalSpacing = verticalSpacing
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        var currentRowWidth: CGFloat = 0
+        var currentRowHeight: CGFloat = 0
+        var totalHeight: CGFloat = 0
+        var maxRowWidth: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            let addSpacing = currentRowWidth == 0 ? 0 : horizontalSpacing
+            if currentRowWidth + addSpacing + size.width > maxWidth {
+                // commit row
+                maxRowWidth = max(maxRowWidth, currentRowWidth)
+                totalHeight += (totalHeight == 0 ? 0 : verticalSpacing) + currentRowHeight
+                currentRowWidth = size.width
+                currentRowHeight = size.height
+            } else {
+                currentRowWidth += addSpacing + size.width
+                currentRowHeight = max(currentRowHeight, size.height)
+            }
+        }
+
+        // commit last row
+        maxRowWidth = max(maxRowWidth, currentRowWidth)
+        totalHeight += currentRowHeight
+
+        return CGSize(width: maxRowWidth.isFinite ? maxRowWidth : 0, height: totalHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x: CGFloat = bounds.minX
+        var y: CGFloat = bounds.minY
+        var currentRowHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            let addSpacing = (x == bounds.minX) ? 0 : horizontalSpacing
+            if x + addSpacing + size.width > bounds.maxX {
+                // wrap to next line
+                x = bounds.minX
+                y += currentRowHeight + verticalSpacing
+                currentRowHeight = 0
+            }
+
+            if x != bounds.minX { x += horizontalSpacing }
+            subview.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+            x += size.width
+            currentRowHeight = max(currentRowHeight, size.height)
+        }
+    }
+}
 
 #Preview {
     ContentView()
