@@ -7,6 +7,21 @@
 
 import SwiftUI
 
+private func status(for metric: Metric) -> MetricStatus {
+    let v = metric.metricValue
+    if v >= metric.metricBadRangeMin && v <= metric.metricBadRangeMax { return .alert }
+    if v >= metric.metricOkayRangeMin && v <= metric.metricOkayRangeMax { return .warning }
+    return .normal
+}
+
+/// Returns the string raw value when the value is a RawRepresentable with String raw value.
+private func stringRawValue<T: RawRepresentable>(_ value: T) -> String? where T.RawValue == String {
+    value.rawValue
+}
+
+/// Fallback overload: when the type isn't a RawRepresentable<String>, return nil.
+private func stringRawValue(_ value: Any) -> String? { nil }
+
 struct MetricSummary: Identifiable, Hashable {
     let id = UUID()
     let name: String
@@ -16,13 +31,10 @@ struct MetricSummary: Identifiable, Hashable {
 struct ContentView: View {
     @State private var isSelectingForDeletion = false
     @State private var showingAddMetric = false
+    @State private var savedMetrics: [Metric] = []
 
     private var metricSummaries: [MetricSummary] {
-        [
-            MetricSummary(name: "Temperature", status: .normal),
-            MetricSummary(name: "Pressure", status: .warning),
-            MetricSummary(name: "Vibration", status: .alert)
-        ]
+        savedMetrics.map { MetricSummary(name: $0.metricName, status: status(for: $0)) }
     }
     
     var body: some View {
@@ -30,32 +42,44 @@ struct ContentView: View {
             ZStack {
                 ScrollView {
                     VStack(spacing: 18) {
-                        MetricsOverview(metrics: metricSummaries)
-                            .padding(.top, 4)
+                        if !metricSummaries.isEmpty {
+                            MetricsOverview(metrics: metricSummaries)
+                                .padding(.top, 4)
+                        }
 
-                        GenericMetricTile(
-                            metricName: "Temperature",
-                            metricReading: 72.5,
-                            unit: "ºC",
-                            status: .normal,
-                            iconName: "Thermometer" // from your assets
-                        )
-
-                        GenericMetricTile(
-                            metricName: "Pressure",
-                            metricReading: 105.4,
-                            unit: " kPa",
-                            status: .warning,
-                            iconName: "Gauge"
-                        )
-
-                        GenericMetricTile(
-                            metricName: "Vibration",
-                            metricReading: 5.8,
-                            unit: " mm/s",
-                            status: .alert,
-                            iconName: "Vibration"
-                        )
+//                        GenericMetricTile(
+//                            metricName: "Temperature",
+//                            metricReading: 72.5,
+//                            unit: "ºC",
+//                            status: .normal,
+//                            iconName: "Thermometer" // from your assets
+//                        )
+//
+//                        GenericMetricTile(
+//                            metricName: "Pressure",
+//                            metricReading: 105.4,
+//                            unit: " kPa",
+//                            status: .warning,
+//                            iconName: "Gauge"
+//                        )
+//
+//                        GenericMetricTile(
+//                            metricName: "Vibration",
+//                            metricReading: 5.8,
+//                            unit: " mm/s",
+//                            status: .alert,
+//                            iconName: "Vibration"
+//                        )
+                        
+                        ForEach(savedMetrics) { metric in
+                            GenericMetricTile(
+                                metricName: metric.metricName,
+                                metricReading: Float(metric.metricValue),
+                                unit: " \(metric.metricUnit)",
+                                status: status(for: metric),
+                                iconName: metric.metricIcon.assetName
+                            )
+                        }
                     }
                     .padding(.horizontal, 18)
                 }
@@ -86,7 +110,9 @@ struct ContentView: View {
                 }
             }
             .sheet(isPresented: $showingAddMetric) {
-                AddMetricView()
+                AddMetricView { newMetric in
+                    savedMetrics.append(newMetric)
+                }
             }
         }
     }
@@ -287,7 +313,32 @@ struct FlowLayout: Layout {
     }
 }
 
+extension MetricIcon {
+    /// Returns an asset or SF Symbol name suitable for Image(_:) based on the icon value.
+    var assetName: String? {
+        // Prefer RawRepresentable<String> raw value if available using helper
+        if let raw = stringRawValue(self) {
+            return raw
+        }
+        // Next, use CustomStringConvertible description if meaningful
+        if let describable = self as? CustomStringConvertible {
+            let desc = describable.description
+            return desc.isEmpty ? nil : desc
+        }
+        // Fallback: best-effort description, but ignore meaningless defaults
+        let fallback = String(describing: self)
+        return fallback.isEmpty || fallback == "(unknown)" ? nil : fallback
+    }
+}
+
 #Preview {
     ContentView()
+}
+
+
+#Preview {
+    NavigationStack {
+        ContentView()
+    }
 }
 

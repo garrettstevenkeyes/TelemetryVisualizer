@@ -8,6 +8,7 @@
 import SwiftUI
 
 struct AddMetricView: View {
+    let onSave: (Metric) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var name: String = ""
     @State private var description: String = ""
@@ -21,7 +22,8 @@ struct AddMetricView: View {
     @State private var badMax: Float = 0
     @State private var percentBadThreshold: Float = 0
 
-    init(icon: MetricSymbol = .none) {
+    init(icon: MetricSymbol = .none, onSave: @escaping (Metric) -> Void = { _ in }) {
+        self.onSave = onSave
         self._icon = State(initialValue: icon)
     }
 
@@ -58,7 +60,24 @@ struct AddMetricView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Save") {
-                        print("Save clicked")
+                        let metric = Metric(
+                            id: UUID(),
+                            metricName: name,
+                            metricIcon: MetricIcon(rawValue: icon.rawValue) ?? .thermometer,
+                            metricUnit: unit,
+                            metricGoodRangeMin: Double(goodMin),
+                            metricGoodRangeMax: Double(goodMax),
+                            metricOkayRangeMin: Double(okayMin),
+                            metricOkayRangeMax: Double(okayMax),
+                            metricBadRangeMin: Double(badMin),
+                            metricBadRangeMax: Double(badMax),
+                            metricZonePercentGood: 0,
+                            metricZonePercentOkay: 0,
+                            metricZonePercentBad: 0,
+                            metricValue: 0
+                        )
+                        self.onSave(metric)
+                        dismiss()
                     }
                     .font(.headline)
                     .foregroundStyle(Color.eggshell)
@@ -108,7 +127,8 @@ struct AddMetricTopBlock: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             TextField("", text: $description)
-                .textInputAutocapitalization(.words)
+                .textInputAutocapitalization(.sentences)
+                .autocorrectionDisabled(false)
                 .accessibilityLabel("Metric description")
                 .padding(.vertical, 12)
                 .padding(.horizontal, 14)
@@ -288,17 +308,24 @@ struct PercentBadAlarm: View {
                         .font(.caption)
                         .foregroundStyle(navy)
 
-                    TextField("", value: $percentBadThreshold, format: .number)
-                        .keyboardType(.decimalPad)
-                        .accessibilityLabel("Alert when unhealthy data is greater than or equal to")
-                        .accessibilityValue("\(percentBadThreshold)")
-                        .accessibilityHint("A notification will be delivered once this threshold is crossed.")
-                        .padding(.vertical, 10)
-                        .padding(.horizontal, 12)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(navy.opacity(0.45), style: StrokeStyle(lineWidth: 2, dash: [6, 5]))
-                        )
+                    HStack(spacing: 8) {
+                        TextField("", value: $percentBadThreshold, format: .number)
+                            .keyboardType(.decimalPad)
+                            .accessibilityLabel("Alert when unhealthy data is greater than or equal to")
+                            .accessibilityValue("\(percentBadThreshold)")
+                            .accessibilityHint("A notification will be delivered once this threshold is crossed.")
+                            .submitLabel(.done)
+                        Text("%")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(navy)
+                            .accessibilityHidden(true)
+                    }
+                    .padding(.vertical, 10)
+                    .padding(.horizontal, 12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(navy.opacity(0.45), style: StrokeStyle(lineWidth: 2, dash: [6, 5]))
+                    )
                 }
             }
             Text("Set the percentage of datapoints considered unhealthy that triggers an alert.")
@@ -347,6 +374,6 @@ enum RangeType: String, CaseIterable, Identifiable {
 }
 
 #Preview {
-    AddMetricView(icon: MetricSymbol.none)
+    AddMetricView(icon: MetricSymbol.none, onSave: { _ in })
 }
 
