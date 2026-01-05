@@ -22,6 +22,7 @@ struct Metric: Codable, Identifiable {
     let metricZonePercentGood: Double
     let metricZonePercentOkay: Double
     let metricZonePercentBad: Double
+    var isActive: Bool
     var metricValue: Double
 }
 
@@ -35,12 +36,14 @@ enum MetricStatus {
     case normal
     case warning
     case alert
+    case inactive
 
     var label: String {
         switch self {
         case .normal: return "Normal"
         case .warning: return "Warning"
         case .alert: return "Alert"
+        case .inactive: return "Inactive"
         }
     }
 
@@ -49,6 +52,7 @@ enum MetricStatus {
         case .normal: return .green
         case .warning: return .yellow
         case .alert: return .red
+        case .inactive: return .gray
         }
     }
 
@@ -57,6 +61,7 @@ enum MetricStatus {
         case .normal: return "checkmark.circle.fill"
         case .warning: return "exclamationmark.triangle.fill"
         case .alert: return "xmark.octagon.fill"
+        case .inactive: return "pause.circle.fill"
         }
     }
 }

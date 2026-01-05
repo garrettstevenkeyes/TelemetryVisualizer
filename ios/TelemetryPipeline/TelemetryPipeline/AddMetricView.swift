@@ -74,6 +74,7 @@ struct AddMetricView: View {
                             metricZonePercentGood: 0,
                             metricZonePercentOkay: 0,
                             metricZonePercentBad: 0,
+                            isActive: false,
                             metricValue: 0
                         )
                         self.onSave(metric)

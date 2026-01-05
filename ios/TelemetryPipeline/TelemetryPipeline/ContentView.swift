@@ -32,9 +32,14 @@ struct ContentView: View {
     @State private var isSelectingForDeletion = false
     @State private var showingAddMetric = false
     @State private var savedMetrics: [Metric] = []
+    @State private var selectedMetricIDs: Set<UUID> = []
+    @State private var showingDeleteConfirmation = false
 
     private var metricSummaries: [MetricSummary] {
-        savedMetrics.map { MetricSummary(name: $0.metricName, status: status(for: $0)) }
+        savedMetrics.map { metric in
+            let s: MetricStatus = metric.isActive ? status(for: metric) : .inactive
+            return MetricSummary(name: metric.metricName, status: s)
+        }
     }
     
     var body: some View {
@@ -72,13 +77,33 @@ struct ContentView: View {
 //                        )
                         
                         ForEach(savedMetrics) { metric in
-                            GenericMetricTile(
-                                metricName: metric.metricName,
-                                metricReading: Float(metric.metricValue),
-                                unit: " \(metric.metricUnit)",
-                                status: status(for: metric),
-                                iconName: metric.metricIcon.assetName
-                            )
+                            ZStack(alignment: .topTrailing) {
+                                GenericMetricTile(
+                                    metricName: metric.metricName,
+                                    metricReading: Float(metric.metricValue),
+                                    unit: " \(metric.metricUnit)",
+                                    status: metric.isActive ? status(for: metric) : nil,
+                                    iconName: metric.metricIcon.assetName
+                                )
+                                if isSelectingForDeletion {
+                                    Image(systemName: selectedMetricIDs.contains(metric.id) ? "checkmark.circle.fill" : "circle")
+                                        .font(.title3)
+                                        .foregroundStyle(selectedMetricIDs.contains(metric.id) ? Color.green : Color.gray.opacity(0.7))
+                                        .padding(.top, 12)      // move further down
+                                        .padding(.trailing, 12) // move further left
+                                        .contentShape(Rectangle())
+                                }
+                            }
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                if isSelectingForDeletion {
+                                    if selectedMetricIDs.contains(metric.id) {
+                                        selectedMetricIDs.remove(metric.id)
+                                    } else {
+                                        selectedMetricIDs.insert(metric.id)
+                                    }
+                                }
+                            }
                         }
                     }
                     .padding(.horizontal, 18)
@@ -89,7 +114,10 @@ struct ContentView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button(action: { isSelectingForDeletion.toggle() }) {
+                    Button(action: {
+                        isSelectingForDeletion.toggle()
+                        if !isSelectingForDeletion { selectedMetricIDs.removeAll() }
+                    }) {
                         Image(systemName: "xmark")
                             .font(.headline)
                             .foregroundStyle(Color.eggshell)
@@ -108,11 +136,38 @@ struct ContentView: View {
                             .foregroundStyle(Color.eggshell)
                     }
                 }
+                ToolbarItem(placement: .topBarTrailing) {
+                    if isSelectingForDeletion {
+                        Button(role: .destructive) {
+                            showingDeleteConfirmation = true
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                        .font(.headline)
+                        .foregroundStyle(Color.red)
+                        .disabled(selectedMetricIDs.isEmpty)
+                        .accessibilityLabel("Delete selected metrics")
+                    }
+                }
             }
             .sheet(isPresented: $showingAddMetric) {
                 AddMetricView { newMetric in
                     savedMetrics.append(newMetric)
                 }
+            }
+            .confirmationDialog(
+                "Delete selected metrics?",
+                isPresented: $showingDeleteConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Delete", role: .destructive) {
+                    savedMetrics.removeAll { selectedMetricIDs.contains($0.id) }
+                    selectedMetricIDs.removeAll()
+                    isSelectingForDeletion = false
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This action cannot be undone.")
             }
         }
     }
@@ -123,7 +178,7 @@ struct GenericMetricTile: View {
     let metricName: String
     let metricReading: Float
     let unit: String
-    let status: MetricStatus
+    let status: MetricStatus?
     let iconName: String? // Optional per-metric icon, e.g. thermometer, gauge, waveform
 
     // Theme
@@ -138,18 +193,34 @@ struct GenericMetricTile: View {
                     .font(.headline)
                     .foregroundStyle(navy)
                 Spacer()
-                HStack(spacing: 6) {
-                    Image(systemName: status.symbolName)
-                        .foregroundStyle(status.color)
-                    Text(status.label)
-                        .font(.subheadline)
-                        .foregroundStyle(status.color)
+                if let status {
+                    HStack(spacing: 6) {
+                        Image(systemName: status.symbolName)
+                            .foregroundStyle(status.color)
+                        Text(status.label)
+                            .font(.subheadline)
+                            .foregroundStyle(status.color)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule().fill(status.color.opacity(0.18))
+                    )
+                } else {
+                    // Inactive tag when there’s no active status
+                    HStack(spacing: 6) {
+                        Image(systemName: "pause.circle.fill")
+                            .foregroundStyle(Color.gray)
+                        Text("Inactive")
+                            .font(.subheadline)
+                            .foregroundStyle(Color.gray)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule().fill(Color.gray.opacity(0.18))
+                    )
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(
-                    Capsule().fill(status.color.opacity(0.18))
-                )
             }
 
             // Reading row: big number + unit and optional icon
@@ -160,9 +231,11 @@ struct GenericMetricTile: View {
                         .foregroundStyle(navy)
 
                     // Secondary status text (optional)
-                    Text(status.label)
-                        .font(.footnote.weight(.medium))
-                        .foregroundStyle(status.color)
+                    if let status {
+                        Text(status.label)
+                            .font(.footnote.weight(.medium))
+                            .foregroundStyle(status.color)
+                    }
                 }
 
                 Spacer()
@@ -192,9 +265,10 @@ struct GenericMetricTile: View {
             RoundedRectangle(cornerRadius: 24)
                 .fill(cardFill)
         )
+        .opacity(status == nil ? 0.5 : 1.0)
         .squiggleCardBorder()
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("\(metricName) \(metricReading) \(unit), status \(status.label)")
+        .accessibilityLabel(status == nil ? "\(metricName) \(metricReading) \(unit), inactive" : "\(metricName) \(metricReading) \(unit), status \(status!.label)")
     }
 }
 
@@ -341,4 +415,5 @@ extension MetricIcon {
         ContentView()
     }
 }
+
 
