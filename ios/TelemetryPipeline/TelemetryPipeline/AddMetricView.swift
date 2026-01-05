@@ -21,6 +21,8 @@ struct AddMetricView: View {
     @State private var badMin: Float = 0
     @State private var badMax: Float = 0
     @State private var percentBadThreshold: Float = 0
+    @State private var goodOpenEnded: Bool = false
+    @State private var badOpenEnded: Bool = false
 
     init(icon: MetricSymbol = .none, onSave: @escaping (Metric) -> Void = { _ in }) {
         self.onSave = onSave
@@ -33,9 +35,23 @@ struct AddMetricView: View {
                 ScrollView {
                     VStack(spacing: 18) {
                         AddMetricTopBlock(name: $name, description: $description, unit: $unit, selectedIcon: $icon)
-                        AddMetricRange(rangeMin: $goodMin, rangeMax: $goodMax, type: .good)
+                        AddMetricRange(
+                            rangeMin: $goodMin,
+                            rangeMax: $goodMax,
+                            type: .good,
+                            disableMax: goodOpenEnded,
+                            openEndedBinding: $goodOpenEnded,
+                            openEndedLabel: "Good is open-ended (≥ min only)"
+                        )
                         AddMetricRange(rangeMin: $okayMin, rangeMax: $okayMax, type: .okay)
-                        AddMetricRange(rangeMin: $badMin, rangeMax: $badMax, type: .bad)
+                        AddMetricRange(
+                            rangeMin: $badMin,
+                            rangeMax: $badMax,
+                            type: .bad,
+                            disableMin: badOpenEnded,
+                            openEndedBinding: $badOpenEnded,
+                            openEndedLabel: "Bad is open-ended (≤ max only)"
+                        )
                         PercentBadAlarm(percentBadThreshold: $percentBadThreshold)
                     }
                     .padding(.horizontal, 18)
@@ -66,10 +82,10 @@ struct AddMetricView: View {
                             metricIcon: MetricIcon(rawValue: icon.rawValue) ?? .thermometer,
                             metricUnit: unit,
                             metricGoodRangeMin: Double(goodMin),
-                            metricGoodRangeMax: Double(goodMax),
+                            metricGoodRangeMax: goodOpenEnded ? -Double.infinity : Double(goodMax),
                             metricOkayRangeMin: Double(okayMin),
                             metricOkayRangeMax: Double(okayMax),
-                            metricBadRangeMin: Double(badMin),
+                            metricBadRangeMin: badOpenEnded ? Double.infinity : Double(badMin),
                             metricBadRangeMax: Double(badMax),
                             metricZonePercentGood: 0,
                             metricZonePercentOkay: 0,
@@ -225,6 +241,10 @@ struct AddMetricRange: View {
     @Binding var rangeMin: Float
     @Binding var rangeMax: Float
     let type: RangeType
+    var disableMin: Bool = false
+    var disableMax: Bool = false
+    var openEndedBinding: Binding<Bool>? = nil
+    var openEndedLabel: String = ""
     
     // Theme colors (match your mock)
     private let navy = Color.eggshell
@@ -245,6 +265,7 @@ struct AddMetricRange: View {
 
                     TextField("", value: $rangeMin, format: .number)
                         .keyboardType(.decimalPad)
+                        .disabled(disableMin)
                         .accessibilityLabel("Minimum \(type.rawValue) value")
                         .accessibilityValue("\(rangeMin)")
                         .padding(.vertical, 10)
@@ -262,6 +283,7 @@ struct AddMetricRange: View {
 
                     TextField("", value: $rangeMax, format: .number)
                         .keyboardType(.decimalPad)
+                        .disabled(disableMax)
                         .accessibilityLabel("Maximum \(type.rawValue) value")
                         .accessibilityValue("\(rangeMax)")
                         .padding(.vertical, 10)
@@ -271,6 +293,11 @@ struct AddMetricRange: View {
                                 .stroke(navy.opacity(0.45), style: StrokeStyle(lineWidth: 2, dash: [6, 5]))
                         )
                 }
+            }
+            if let openEndedBinding {
+                Toggle(openEndedLabel, isOn: openEndedBinding)
+                    .font(.footnote)
+                    .tint(navy.opacity(0.8))
             }
             Text("Enter the acceptable range for this metric.")
                 .font(.footnote)

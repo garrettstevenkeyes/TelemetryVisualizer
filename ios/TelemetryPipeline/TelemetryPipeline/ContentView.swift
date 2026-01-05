@@ -9,9 +9,29 @@ import SwiftUI
 
 private func status(for metric: Metric) -> MetricStatus {
     let v = metric.metricValue
-    if v >= metric.metricBadRangeMin && v <= metric.metricBadRangeMax { return .alert }
-    if v >= metric.metricOkayRangeMin && v <= metric.metricOkayRangeMax { return .warning }
-    return .normal
+
+    // BAD
+    if metric.metricBadRangeMin > metric.metricBadRangeMax {
+        if v <= metric.metricBadRangeMax { return .alert }
+    } else {
+        if v >= metric.metricBadRangeMin && v <= metric.metricBadRangeMax { return .alert }
+    }
+
+    // GOOD
+    if metric.metricGoodRangeMax < metric.metricGoodRangeMin {
+        if v >= metric.metricGoodRangeMin { return .normal }
+    } else {
+        if v >= metric.metricGoodRangeMin && v <= metric.metricGoodRangeMax { return .normal }
+    }
+
+    // OKAY
+    if metric.metricOkayRangeMin <= metric.metricOkayRangeMax &&
+        v >= metric.metricOkayRangeMin && v <= metric.metricOkayRangeMax {
+        return .warning
+    }
+
+    // Default
+    return .warning
 }
 
 /// Returns the string raw value when the value is a RawRepresentable with String raw value.
@@ -51,30 +71,6 @@ struct ContentView: View {
                             MetricsOverview(metrics: metricSummaries)
                                 .padding(.top, 4)
                         }
-
-//                        GenericMetricTile(
-//                            metricName: "Temperature",
-//                            metricReading: 72.5,
-//                            unit: "ºC",
-//                            status: .normal,
-//                            iconName: "Thermometer" // from your assets
-//                        )
-//
-//                        GenericMetricTile(
-//                            metricName: "Pressure",
-//                            metricReading: 105.4,
-//                            unit: " kPa",
-//                            status: .warning,
-//                            iconName: "Gauge"
-//                        )
-//
-//                        GenericMetricTile(
-//                            metricName: "Vibration",
-//                            metricReading: 5.8,
-//                            unit: " mm/s",
-//                            status: .alert,
-//                            iconName: "Vibration"
-//                        )
                         
                         ForEach(savedMetrics) { metric in
                             ZStack(alignment: .topTrailing) {
