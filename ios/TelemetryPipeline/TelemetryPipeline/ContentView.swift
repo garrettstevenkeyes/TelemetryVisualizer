@@ -121,8 +121,9 @@ struct ContentView: View {
                         Image(systemName: "xmark")
                             .font(.headline)
                             .foregroundStyle(Color.eggshell)
-                            .accessibilityLabel(isSelectingForDeletion ? "Exit selection" : "Select metrics")
                     }
+                    .disabled(savedMetrics.isEmpty)
+                    .accessibilityLabel(savedMetrics.isEmpty ? "No metrics to select" : (isSelectingForDeletion ? "Exit selection" : "Select metrics"))
                 }
                 ToolbarItem(placement: .principal) {
                     Text("Metrics")
@@ -415,5 +416,4 @@ extension MetricIcon {
         ContentView()
     }
 }
-
 
