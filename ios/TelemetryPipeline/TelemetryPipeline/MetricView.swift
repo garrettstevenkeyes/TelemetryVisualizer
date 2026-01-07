@@ -8,6 +8,7 @@
 import SwiftUI
 import Charts
 import Combine
+import Foundation
 
 struct MetricView: View {
     let metric: Metric
@@ -91,6 +92,68 @@ struct MetricView: View {
                     )
                     .squiggleCardBorder()
 
+                    // Zone Distribution
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Zone Distribution")
+                            .font(.headline.weight(.semibold))
+                            .foregroundStyle(Color.eggshell)
+
+                        HStack(alignment: .center, spacing: 12) {
+                            // Percent list
+                            VStack(alignment: .leading, spacing: 8) {
+                                LegendDot(color: MetricStatus.normal.color, label: "\(goodPercentage())% Good")
+                                LegendDot(color: MetricStatus.warning.color, label: "\(okayPercentage())% Okay")
+                                LegendDot(color: MetricStatus.alert.color, label: "\(badPercentage())% Bad")
+                            }
+
+                            Spacer(minLength: 12)
+
+                            // Pie chart (uses counts; falls back to local when server aggregate is unavailable)
+                            let counts = distributionCounts()
+                            Chart {
+                                SectorMark(
+                                    angle: .value("Count", counts.good),
+                                    innerRadius: .ratio(0.6)
+                                )
+                                .foregroundStyle(MetricStatus.normal.color)
+
+                                SectorMark(
+                                    angle: .value("Count", counts.okay),
+                                    innerRadius: .ratio(0.6)
+                                )
+                                .foregroundStyle(MetricStatus.warning.color)
+
+                                SectorMark(
+                                    angle: .value("Count", counts.bad),
+                                    innerRadius: .ratio(0.6)
+                                )
+                                .foregroundStyle(MetricStatus.alert.color)
+                            }
+                            .chartLegend(.hidden)
+                            .frame(width: 140, height: 140)
+                        }
+                    }
+                    .padding(12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 24)
+                            .fill(Color.white.opacity(0.22))
+                    )
+                    .squiggleCardBorder()
+
+                    // Summary stats
+                    VStack(alignment: .leading, spacing: 10) {
+                        StatRow(label: "Current:", value: formattedValue(currentReading()))
+                        StatRow(label: "Max:", value: formattedValue(maxReading()))
+                        StatRow(label: "Min:", value: formattedValue(minReading()))
+                        StatRow(label: "Average:", value: formattedValue(averageReading()))
+                    }
+                    .padding(12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 24)
+                            .fill(Color.white.opacity(0.22))
+                    )
+                    .squiggleCardBorder()
+
                     Spacer(minLength: 0)
                 }
                 .padding(.horizontal, 18)
@@ -100,8 +163,17 @@ struct MetricView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .paperBackground()
         .navigationBarTitleDisplayMode(.inline)
-        .task { stream.start() }
-        .onDisappear { stream.stop() }
+        .task {
+            stream.start()
+            let isPreview = ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
+            if !isPreview {
+                stream.startAggregatesLongPolling(metricID: metric.id)
+            }
+        }
+        .onDisappear {
+            stream.stop()
+            stream.stopAggregatesLongPolling()
+        }
     }
 
     // Compute a reasonable Y domain that includes ranges and data
@@ -123,6 +195,104 @@ struct MetricView: View {
 
         if minY == maxY { maxY += 1 }
         return minY...maxY
+    }
+
+    // MARK: - Zone classification and percentages
+    private func isGood(_ v: Double) -> Bool {
+        if metric.metricGoodRangeMax < metric.metricGoodRangeMin {
+            return v >= goodMin
+        } else {
+            return v >= goodMin && v <= goodMax
+        }
+    }
+
+    private func isBad(_ v: Double) -> Bool {
+        if metric.metricBadRangeMin > metric.metricBadRangeMax {
+            return v <= badMax
+        } else {
+            return v >= badMin && v <= badMax
+        }
+    }
+
+    private func zoneCounts() -> (good: Int, okay: Int, bad: Int) {
+        var good = 0, okay = 0, bad = 0
+        var values = stream.readings.map { $0.value }
+        if values.isEmpty { values = [metric.metricValue] }
+        for v in values {
+            if isGood(v) {
+                good += 1
+            } else if isBad(v) {
+                bad += 1
+            } else {
+                // Middle band (or anything not classified above)
+                okay += 1
+            }
+        }
+        return (good, okay, bad)
+    }
+
+    private func totalSamples() -> Int {
+        let count = stream.readings.isEmpty ? 1 : stream.readings.count
+        return max(1, count)
+    }
+
+    private func distributionCounts() -> (good: Int, okay: Int, bad: Int) {
+        if let d = stream.serverDistribution {
+            return (d.good, d.okay, d.bad)
+        } else {
+            let counts = zoneCounts()
+            return (counts.good, counts.okay, counts.bad)
+        }
+    }
+
+    private func percent(_ part: Int, total: Int) -> Int {
+        guard total > 0 else { return 0 }
+        return Int(round((Double(part) / Double(total)) * 100))
+    }
+
+    private func goodPercentage() -> Int {
+        let c = distributionCounts()
+        let total = c.good + c.okay + c.bad
+        return percent(c.good, total: total)
+    }
+
+    private func okayPercentage() -> Int {
+        let c = distributionCounts()
+        let total = c.good + c.okay + c.bad
+        return percent(c.okay, total: total)
+    }
+
+    private func badPercentage() -> Int {
+        let c = distributionCounts()
+        let total = c.good + c.okay + c.bad
+        return percent(c.bad, total: total)
+    }
+
+    // MARK: - Stats helpers
+    private func currentReading() -> Double {
+        stream.readings.last?.value ?? metric.metricValue
+    }
+
+    private func maxReading() -> Double {
+        let values = stream.readings.map { $0.value }
+        return values.max() ?? currentReading()
+    }
+
+    private func minReading() -> Double {
+        let values = stream.readings.map { $0.value }
+        return values.min() ?? currentReading()
+    }
+
+    private func averageReading() -> Double {
+        let values = stream.readings.map { $0.value }
+        guard !values.isEmpty else { return currentReading() }
+        let sum = values.reduce(0, +)
+        return sum / Double(values.count)
+    }
+
+    private func formattedValue(_ v: Double) -> String {
+        let number = v.formatted(.number.precision(.fractionLength(1)))
+        return "\(number)\(metric.metricUnit)"
     }
 }
 
@@ -202,11 +372,20 @@ struct MetricReading: Identifiable {
     let value: Double
 }
 
+struct ZoneDistribution: Codable {
+    let good: Int
+    let okay: Int
+    let bad: Int
+    let windowSeconds: Int?
+}
+
 @MainActor
 final class MetricStream: ObservableObject {
     @Published private(set) var readings: [MetricReading] = []
+    @Published private(set) var serverDistribution: ZoneDistribution?
     private var timer: Timer?
     private var startDate: Date = Date()
+    private var pollingTask: Task<Void, Never>?
 
     func start() {
         stop()
@@ -229,9 +408,65 @@ final class MetricStream: ObservableObject {
         timer = nil
     }
 
+    func startAggregatesLongPolling(metricID: UUID) {
+        stopAggregatesLongPolling()
+        pollingTask = Task { [weak self] in
+            await self?.pollAggregates(metricID: metricID)
+        }
+    }
+
+    func stopAggregatesLongPolling() {
+        pollingTask?.cancel()
+        pollingTask = nil
+    }
+
+    private func pollAggregates(metricID: UUID) async {
+        while !Task.isCancelled {
+            do {
+                let url = URL(string: "https://example.com/api/metrics/\(metricID.uuidString)/distribution")!
+                var request = URLRequest(url: url)
+                request.timeoutInterval = 35 // long-poll timeout
+                let (data, _) = try await URLSession.shared.data(for: request)
+                let dist = try JSONDecoder().decode(ZoneDistribution.self, from: data)
+                self.serverDistribution = dist
+            } catch {
+                // Optional: log or handle error; we'll retry after a short delay
+            }
+            // Backoff to avoid tight loop on quick failures/successes
+            try? await Task.sleep(nanoseconds: 500_000_000)
+        }
+    }
+
     private func append(timestamp: Date, value: Double) {
         readings.append(MetricReading(timestamp: timestamp, value: value))
         if readings.count > 600 { readings.removeFirst(readings.count - 600) }
+    }
+}
+
+private struct StatRow: View {
+    let label: String
+    let value: String
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(label)
+                .foregroundStyle(Color.eggshell)
+            HorizontalDashedLine()
+                .stroke(style: StrokeStyle(lineWidth: 1, dash: [3, 4]))
+                .foregroundStyle(Color.eggshell.opacity(0.6))
+                .frame(maxWidth: .infinity, maxHeight: 1)
+            Text(value)
+                .foregroundStyle(Color.eggshell)
+        }
+        .font(.body)
+    }
+}
+
+private struct HorizontalDashedLine: Shape {
+    func path(in rect: CGRect) -> Path {
+        var p = Path()
+        p.move(to: CGPoint(x: 0, y: rect.midY))
+        p.addLine(to: CGPoint(x: rect.width, y: rect.midY))
+        return p
     }
 }
 
