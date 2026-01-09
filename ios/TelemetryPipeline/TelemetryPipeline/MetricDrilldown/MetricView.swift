@@ -13,21 +13,12 @@ import Foundation
 struct MetricView: View {
     let metric: Metric
     @Environment(\.dismiss) private var dismiss
+    @StateObject private var viewModel: MetricViewModel
 
-    @StateObject private var stream = MetricStream()
-
-    // Convenience accessors
-    private var goodMin: Double { metric.metricGoodRangeMin }
-    private var goodMax: Double { metric.metricGoodRangeMax }
-    private var okayMin: Double { metric.metricOkayRangeMin }
-    private var okayMax: Double { metric.metricOkayRangeMax }
-    private var badMin: Double { metric.metricBadRangeMin }
-    private var badMax: Double { metric.metricBadRangeMax }
-
-    // Status colors (match your app's MetricStatus colors)
-    private var goodFill: Color { MetricStatus.normal.color.opacity(0.25) }
-    private var okayFill: Color { MetricStatus.warning.color.opacity(0.25) }
-    private var badFill: Color { MetricStatus.alert.color.opacity(0.25) }
+    init(metric: Metric) {
+        self.metric = metric
+        _viewModel = StateObject(wrappedValue: MetricViewModel(metric: metric))
+    }
 
     var body: some View {
         ZStack {
@@ -51,7 +42,7 @@ struct MetricView: View {
 
                     // Chart with background bands
                     Chart {
-                        ForEach(stream.readings) { reading in
+                        ForEach(viewModel.readings) { reading in
                             LineMark(
                                 x: .value("Time", reading.timestamp),
                                 y: .value("Value", reading.value)
@@ -63,15 +54,15 @@ struct MetricView: View {
                     .chartBackground { proxy in
                         MetricBandsBackground(
                             proxy: proxy,
-                            goodMin: goodMin,
-                            goodMax: goodMax,
-                            okayMin: okayMin,
-                            okayMax: okayMax,
-                            badMin: badMin,
-                            badMax: badMax,
-                            goodFill: goodFill,
-                            okayFill: okayFill,
-                            badFill: badFill,
+                            goodMin: viewModel.goodMin,
+                            goodMax: viewModel.goodMax,
+                            okayMin: viewModel.okayMin,
+                            okayMax: viewModel.okayMax,
+                            badMin: viewModel.badMin,
+                            badMax: viewModel.badMax,
+                            goodFill: viewModel.goodFill,
+                            okayFill: viewModel.okayFill,
+                            badFill: viewModel.badFill,
                             openEndedGood: metric.metricGoodRangeMax < metric.metricGoodRangeMin,
                             openEndedBad: metric.metricBadRangeMin > metric.metricBadRangeMax
                         )
@@ -84,7 +75,7 @@ struct MetricView: View {
                         }
                     }
                     .chartYAxis { AxisMarks(position: .leading) }
-                    .chartYScale(domain: suggestedYDomain())
+                    .chartYScale(domain: viewModel.suggestedYDomain())
                     .frame(height: 220)
                     .padding(12)
                     .background(
@@ -102,33 +93,42 @@ struct MetricView: View {
                         HStack(alignment: .center, spacing: 12) {
                             // Percent list
                             VStack(alignment: .leading, spacing: 8) {
-                                LegendDot(color: MetricStatus.normal.color, label: "\(goodPercentage())% Good")
-                                LegendDot(color: MetricStatus.warning.color, label: "\(okayPercentage())% Okay")
-                                LegendDot(color: MetricStatus.alert.color, label: "\(badPercentage())% Bad")
+                                LegendDot(color: MetricStatus.normal.color, label: "\(viewModel.goodPercentage())% Good")
+                                LegendDot(color: MetricStatus.warning.color, label: "\(viewModel.okayPercentage())% Okay")
+                                LegendDot(color: MetricStatus.alert.color, label: "\(viewModel.badPercentage())% Bad")
                             }
 
                             Spacer(minLength: 12)
 
-                            // Pie chart (uses counts; falls back to local when server aggregate is unavailable)
-                            let counts = distributionCounts()
+                            // Pie chart (driven by percentages to match labels; omit zero-percent slices)
+                            let goodP = viewModel.goodPercentage()
+                            let okayP = viewModel.okayPercentage()
+                            let badP = viewModel.badPercentage()
+
                             Chart {
-                                SectorMark(
-                                    angle: .value("Count", counts.good),
-                                    innerRadius: .ratio(0.6)
-                                )
-                                .foregroundStyle(MetricStatus.normal.color)
+                                if goodP > 0 {
+                                    SectorMark(
+                                        angle: .value("Percent", goodP),
+                                        innerRadius: .ratio(0.6)
+                                    )
+                                    .foregroundStyle(MetricStatus.normal.color)
+                                }
 
-                                SectorMark(
-                                    angle: .value("Count", counts.okay),
-                                    innerRadius: .ratio(0.6)
-                                )
-                                .foregroundStyle(MetricStatus.warning.color)
+                                if okayP > 0 {
+                                    SectorMark(
+                                        angle: .value("Percent", okayP),
+                                        innerRadius: .ratio(0.6)
+                                    )
+                                    .foregroundStyle(MetricStatus.warning.color)
+                                }
 
-                                SectorMark(
-                                    angle: .value("Count", counts.bad),
-                                    innerRadius: .ratio(0.6)
-                                )
-                                .foregroundStyle(MetricStatus.alert.color)
+                                if badP > 0 {
+                                    SectorMark(
+                                        angle: .value("Percent", badP),
+                                        innerRadius: .ratio(0.6)
+                                    )
+                                    .foregroundStyle(MetricStatus.alert.color)
+                                }
                             }
                             .chartLegend(.hidden)
                             .frame(width: 140, height: 140)
@@ -143,10 +143,10 @@ struct MetricView: View {
 
                     // Summary stats
                     VStack(alignment: .leading, spacing: 10) {
-                        StatRow(label: "Current:", value: formattedValue(currentReading()))
-                        StatRow(label: "Max:", value: formattedValue(maxReading()))
-                        StatRow(label: "Min:", value: formattedValue(minReading()))
-                        StatRow(label: "Average:", value: formattedValue(averageReading()))
+                        StatRow(label: "Current:", value: viewModel.formattedValue(viewModel.currentReading()))
+                        StatRow(label: "Max:", value: viewModel.formattedValue(viewModel.maxReading()))
+                        StatRow(label: "Min:", value: viewModel.formattedValue(viewModel.minReading()))
+                        StatRow(label: "Average:", value: viewModel.formattedValue(viewModel.averageReading()))
                     }
                     .padding(12)
                     .background(
@@ -177,153 +177,14 @@ struct MetricView: View {
             }
         }
         .task {
-            // Only stream/poll when the metric is active
-            guard metric.isActive else {
-                stream.stop()
-                stream.stopAggregatesLongPolling()
-                return
-            }
-            stream.start()
-            let isPreview = ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
-            if !isPreview {
-                stream.startAggregatesLongPolling(metricID: metric.id)
-            }
+            viewModel.startIfNeeded()
         }
         .onDisappear {
-            stream.stop()
-            stream.stopAggregatesLongPolling()
+            viewModel.stopAll()
         }
         .onChange(of: metric.isActive) { _, isActive in
-            if isActive {
-                stream.start()
-                let isPreview = ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
-                if !isPreview {
-                    stream.startAggregatesLongPolling(metricID: metric.id)
-                }
-            } else {
-                stream.stop()
-                stream.stopAggregatesLongPolling()
-            }
+            viewModel.handleActiveChange(isActive)
         }
-    }
-
-    // Compute a reasonable Y domain that includes ranges and data
-    private func suggestedYDomain() -> ClosedRange<Double> {
-        let dataMin = stream.readings.map { $0.value }.min() ?? .infinity
-        let dataMax = stream.readings.map { $0.value }.max() ?? -.infinity
-
-        var minY = min(badMin, okayMin, goodMin, dataMin)
-        var maxY = max(badMax, okayMax, goodMax, dataMax)
-
-        if metric.metricGoodRangeMax < metric.metricGoodRangeMin {
-            let span = max(1, (maxY - minY) * 0.2)
-            maxY = max(maxY, goodMin + span)
-        }
-        if metric.metricBadRangeMin > metric.metricBadRangeMax {
-            let span = max(1, (maxY - minY) * 0.2)
-            minY = min(minY, badMax - span)
-        }
-
-        if minY == maxY { maxY += 1 }
-        return minY...maxY
-    }
-
-    // MARK: - Zone classification and percentages
-    private func isGood(_ v: Double) -> Bool {
-        if metric.metricGoodRangeMax < metric.metricGoodRangeMin {
-            return v >= goodMin
-        } else {
-            return v >= goodMin && v <= goodMax
-        }
-    }
-
-    private func isBad(_ v: Double) -> Bool {
-        if metric.metricBadRangeMin > metric.metricBadRangeMax {
-            return v <= badMax
-        } else {
-            return v >= badMin && v <= badMax
-        }
-    }
-
-    private func zoneCounts() -> (good: Int, okay: Int, bad: Int) {
-        var good = 0, okay = 0, bad = 0
-        var values = stream.readings.map { $0.value }
-        if values.isEmpty { values = [metric.metricValue] }
-        for v in values {
-            if isGood(v) {
-                good += 1
-            } else if isBad(v) {
-                bad += 1
-            } else {
-                // Middle band (or anything not classified above)
-                okay += 1
-            }
-        }
-        return (good, okay, bad)
-    }
-
-    private func totalSamples() -> Int {
-        let count = stream.readings.isEmpty ? 1 : stream.readings.count
-        return max(1, count)
-    }
-
-    private func distributionCounts() -> (good: Int, okay: Int, bad: Int) {
-        if let d = stream.serverDistribution {
-            return (d.good, d.okay, d.bad)
-        } else {
-            let counts = zoneCounts()
-            return (counts.good, counts.okay, counts.bad)
-        }
-    }
-
-    private func percent(_ part: Int, total: Int) -> Int {
-        guard total > 0 else { return 0 }
-        return Int(round((Double(part) / Double(total)) * 100))
-    }
-
-    private func goodPercentage() -> Int {
-        let c = distributionCounts()
-        let total = c.good + c.okay + c.bad
-        return percent(c.good, total: total)
-    }
-
-    private func okayPercentage() -> Int {
-        let c = distributionCounts()
-        let total = c.good + c.okay + c.bad
-        return percent(c.okay, total: total)
-    }
-
-    private func badPercentage() -> Int {
-        let c = distributionCounts()
-        let total = c.good + c.okay + c.bad
-        return percent(c.bad, total: total)
-    }
-
-    // MARK: - Stats helpers
-    private func currentReading() -> Double {
-        stream.readings.last?.value ?? metric.metricValue
-    }
-
-    private func maxReading() -> Double {
-        let values = stream.readings.map { $0.value }
-        return values.max() ?? currentReading()
-    }
-
-    private func minReading() -> Double {
-        let values = stream.readings.map { $0.value }
-        return values.min() ?? currentReading()
-    }
-
-    private func averageReading() -> Double {
-        let values = stream.readings.map { $0.value }
-        guard !values.isEmpty else { return currentReading() }
-        let sum = values.reduce(0, +)
-        return sum / Double(values.count)
-    }
-
-    private func formattedValue(_ v: Double) -> String {
-        let number = v.formatted(.number.precision(.fractionLength(1)))
-        return "\(number)\(metric.metricUnit)"
     }
 }
 
