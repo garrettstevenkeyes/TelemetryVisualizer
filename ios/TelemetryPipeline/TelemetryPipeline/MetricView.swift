@@ -12,6 +12,7 @@ import Foundation
 
 struct MetricView: View {
     let metric: Metric
+    @Environment(\.dismiss) private var dismiss
 
     @StateObject private var stream = MetricStream()
 
@@ -163,7 +164,25 @@ struct MetricView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .paperBackground()
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button {
+                    dismiss()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.left")
+                        Text("Back")
+                    }
+                }
+            }
+        }
         .task {
+            // Only stream/poll when the metric is active
+            guard metric.isActive else {
+                stream.stop()
+                stream.stopAggregatesLongPolling()
+                return
+            }
             stream.start()
             let isPreview = ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
             if !isPreview {
@@ -173,6 +192,18 @@ struct MetricView: View {
         .onDisappear {
             stream.stop()
             stream.stopAggregatesLongPolling()
+        }
+        .onChange(of: metric.isActive) { _, isActive in
+            if isActive {
+                stream.start()
+                let isPreview = ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
+                if !isPreview {
+                    stream.startAggregatesLongPolling(metricID: metric.id)
+                }
+            } else {
+                stream.stop()
+                stream.stopAggregatesLongPolling()
+            }
         }
     }
 
