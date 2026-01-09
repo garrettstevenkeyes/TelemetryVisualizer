@@ -2,6 +2,7 @@ import SwiftUI
 import Foundation
 import Combine
 
+@MainActor
 final class AddMetricViewModel: ObservableObject {
     @Published var name: String = ""
     @Published var description: String = ""
