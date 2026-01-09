@@ -73,32 +73,41 @@ struct ContentView: View {
                         }
                         
                         ForEach(savedMetrics) { metric in
-                            ZStack(alignment: .topTrailing) {
-                                GenericMetricTile(
-                                    metricName: metric.metricName,
-                                    metricReading: Float(metric.metricValue),
-                                    unit: " \(metric.metricUnit)",
-                                    status: metric.isActive ? status(for: metric) : nil,
-                                    iconName: metric.metricIcon.assetName
-                                )
-                                if isSelectingForDeletion {
+                            if isSelectingForDeletion {
+                                ZStack(alignment: .topTrailing) {
+                                    GenericMetricTile(
+                                        metricName: metric.metricName,
+                                        metricReading: Float(metric.metricValue),
+                                        unit: " \(metric.metricUnit)",
+                                        status: metric.isActive ? status(for: metric) : nil,
+                                        iconName: metric.metricIcon.assetName
+                                    )
                                     Image(systemName: selectedMetricIDs.contains(metric.id) ? "checkmark.circle.fill" : "circle")
                                         .font(.title3)
                                         .foregroundStyle(selectedMetricIDs.contains(metric.id) ? Color.green : Color.gray.opacity(0.7))
-                                        .padding(.top, 12)      // move further down
-                                        .padding(.trailing, 12) // move further left
+                                        .padding(.top, 12)
+                                        .padding(.trailing, 12)
                                         .contentShape(Rectangle())
                                 }
-                            }
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                if isSelectingForDeletion {
+                                .contentShape(Rectangle())
+                                .onTapGesture {
                                     if selectedMetricIDs.contains(metric.id) {
                                         selectedMetricIDs.remove(metric.id)
                                     } else {
                                         selectedMetricIDs.insert(metric.id)
                                     }
                                 }
+                            } else {
+                                NavigationLink(destination: MetricView(metric: metric)) {
+                                    GenericMetricTile(
+                                        metricName: metric.metricName,
+                                        metricReading: Float(metric.metricValue),
+                                        unit: " \(metric.metricUnit)",
+                                        status: metric.isActive ? status(for: metric) : nil,
+                                        iconName: metric.metricIcon.assetName
+                                    )
+                                }
+                                .buttonStyle(.plain)
                             }
                         }
                     }
