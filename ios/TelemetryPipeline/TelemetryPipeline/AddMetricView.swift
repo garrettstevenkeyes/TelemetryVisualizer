@@ -8,25 +8,11 @@
 import SwiftUI
 
 struct AddMetricView: View {
-    let onSave: (Metric) -> Void
+    @StateObject private var viewModel: AddMetricViewModel
     @Environment(\.dismiss) private var dismiss
-    @State private var name: String = ""
-    @State private var description: String = ""
-    @State private var unit: String = ""
-    @State private var icon: MetricSymbol = .none
-    @State private var goodMin: Float = 0
-    @State private var goodMax: Float = 0
-    @State private var okayMin: Float = 0
-    @State private var okayMax: Float = 0
-    @State private var badMin: Float = 0
-    @State private var badMax: Float = 0
-    @State private var percentBadThreshold: Float = 0
-    @State private var goodOpenEnded: Bool = false
-    @State private var badOpenEnded: Bool = false
 
     init(icon: MetricSymbol = .none, onSave: @escaping (Metric) -> Void = { _ in }) {
-        self.onSave = onSave
-        self._icon = State(initialValue: icon)
+        _viewModel = StateObject(wrappedValue: AddMetricViewModel(icon: icon, onSave: onSave))
     }
 
     var body: some View {
@@ -34,25 +20,25 @@ struct AddMetricView: View {
             ZStack {
                 ScrollView {
                     VStack(spacing: 18) {
-                        AddMetricTopBlock(name: $name, description: $description, unit: $unit, selectedIcon: $icon)
+                        AddMetricTopBlock(name: $viewModel.name, description: $viewModel.description, unit: $viewModel.unit, selectedIcon: $viewModel.icon)
                         AddMetricRange(
-                            rangeMin: $goodMin,
-                            rangeMax: $goodMax,
+                            rangeMin: $viewModel.goodMin,
+                            rangeMax: $viewModel.goodMax,
                             type: .good,
-                            disableMax: goodOpenEnded,
-                            openEndedBinding: $goodOpenEnded,
+                            disableMax: viewModel.goodOpenEnded,
+                            openEndedBinding: $viewModel.goodOpenEnded,
                             openEndedLabel: "Good is open-ended (≥ min only)"
                         )
-                        AddMetricRange(rangeMin: $okayMin, rangeMax: $okayMax, type: .okay)
+                        AddMetricRange(rangeMin: $viewModel.okayMin, rangeMax: $viewModel.okayMax, type: .okay)
                         AddMetricRange(
-                            rangeMin: $badMin,
-                            rangeMax: $badMax,
+                            rangeMin: $viewModel.badMin,
+                            rangeMax: $viewModel.badMax,
                             type: .bad,
-                            disableMin: badOpenEnded,
-                            openEndedBinding: $badOpenEnded,
+                            disableMin: viewModel.badOpenEnded,
+                            openEndedBinding: $viewModel.badOpenEnded,
                             openEndedLabel: "Bad is open-ended (≤ max only)"
                         )
-                        PercentBadAlarm(percentBadThreshold: $percentBadThreshold)
+                        PercentBadAlarm(percentBadThreshold: $viewModel.percentBadThreshold)
                     }
                     .padding(.horizontal, 18)
                     .padding(.top, 0)
@@ -76,29 +62,13 @@ struct AddMetricView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Save") {
-                        let metric = Metric(
-                            id: UUID(),
-                            metricName: name,
-                            metricIcon: MetricIcon(rawValue: icon.rawValue) ?? .thermometer,
-                            metricUnit: unit,
-                            metricGoodRangeMin: Double(goodMin),
-                            metricGoodRangeMax: goodOpenEnded ? -Double.infinity : Double(goodMax),
-                            metricOkayRangeMin: Double(okayMin),
-                            metricOkayRangeMax: Double(okayMax),
-                            metricBadRangeMin: badOpenEnded ? Double.infinity : Double(badMin),
-                            metricBadRangeMax: Double(badMax),
-                            metricZonePercentGood: 0,
-                            metricZonePercentOkay: 0,
-                            metricZonePercentBad: 0,
-                            isActive: false,
-                            metricValue: 0
-                        )
-                        self.onSave(metric)
+                        viewModel.save()
                         dismiss()
                     }
                     .font(.headline)
                     .foregroundStyle(Color.eggshell)
                     .accessibilityLabel("Save metric")
+                    .disabled(!viewModel.canSave)
                 }
             }
         }
