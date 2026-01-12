@@ -6,33 +6,7 @@
 //
 
 import SwiftUI
-
-private func status(for metric: Metric) -> MetricStatus {
-    let v = metric.metricValue
-
-    // BAD
-    if metric.metricBadRangeMin > metric.metricBadRangeMax {
-        if v <= metric.metricBadRangeMax { return .alert }
-    } else {
-        if v >= metric.metricBadRangeMin && v <= metric.metricBadRangeMax { return .alert }
-    }
-
-    // GOOD
-    if metric.metricGoodRangeMax < metric.metricGoodRangeMin {
-        if v >= metric.metricGoodRangeMin { return .normal }
-    } else {
-        if v >= metric.metricGoodRangeMin && v <= metric.metricGoodRangeMax { return .normal }
-    }
-
-    // OKAY
-    if metric.metricOkayRangeMin <= metric.metricOkayRangeMax &&
-        v >= metric.metricOkayRangeMin && v <= metric.metricOkayRangeMax {
-        return .warning
-    }
-
-    // Default
-    return .warning
-}
+import Combine
 
 /// Returns the string raw value when the value is a RawRepresentable with String raw value.
 private func stringRawValue<T: RawRepresentable>(_ value: T) -> String? where T.RawValue == String {
@@ -49,52 +23,41 @@ struct MetricSummary: Identifiable, Hashable {
 }
 
 struct ContentView: View {
-    @State private var isSelectingForDeletion = false
-    @State private var showingAddMetric = false
-    @State private var savedMetrics: [Metric] = []
-    @State private var selectedMetricIDs: Set<UUID> = []
-    @State private var showingDeleteConfirmation = false
-
-    private var metricSummaries: [MetricSummary] {
-        savedMetrics.map { metric in
-            let s: MetricStatus = metric.isActive ? status(for: metric) : .inactive
-            return MetricSummary(name: metric.metricName, status: s)
-        }
-    }
+    @StateObject private var viewModel = ContentViewModel()
     
     var body: some View {
         NavigationStack {
             ZStack {
                 ScrollView {
                     VStack(spacing: 18) {
-                        if !metricSummaries.isEmpty {
-                            MetricsOverview(metrics: metricSummaries)
+                        if !viewModel.metricSummaries.isEmpty {
+                            MetricsOverview(metrics: viewModel.metricSummaries)
                                 .padding(.top, 4)
                         }
                         
-                        ForEach(savedMetrics) { metric in
-                            if isSelectingForDeletion {
+                        ForEach(viewModel.savedMetrics) { metric in
+                            if viewModel.isSelectingForDeletion {
                                 ZStack(alignment: .topTrailing) {
                                     GenericMetricTile(
                                         metricName: metric.metricName,
                                         metricReading: Float(metric.metricValue),
                                         unit: " \(metric.metricUnit)",
-                                        status: metric.isActive ? status(for: metric) : nil,
+                                        status: metric.isActive ? viewModel.status(for: metric) : nil,
                                         iconName: metric.metricIcon.assetName
                                     )
-                                    Image(systemName: selectedMetricIDs.contains(metric.id) ? "checkmark.circle.fill" : "circle")
+                                    Image(systemName: viewModel.selectedMetricIDs.contains(metric.id) ? "checkmark.circle.fill" : "circle")
                                         .font(.title3)
-                                        .foregroundStyle(selectedMetricIDs.contains(metric.id) ? Color.green : Color.gray.opacity(0.7))
+                                        .foregroundStyle(viewModel.selectedMetricIDs.contains(metric.id) ? Color.green : Color.gray.opacity(0.7))
                                         .padding(.top, 12)
                                         .padding(.trailing, 12)
                                         .contentShape(Rectangle())
                                 }
                                 .contentShape(Rectangle())
                                 .onTapGesture {
-                                    if selectedMetricIDs.contains(metric.id) {
-                                        selectedMetricIDs.remove(metric.id)
+                                    if viewModel.selectedMetricIDs.contains(metric.id) {
+                                        viewModel.selectedMetricIDs.remove(metric.id)
                                     } else {
-                                        selectedMetricIDs.insert(metric.id)
+                                        viewModel.selectedMetricIDs.insert(metric.id)
                                     }
                                 }
                             } else {
@@ -103,7 +66,7 @@ struct ContentView: View {
                                         metricName: metric.metricName,
                                         metricReading: Float(metric.metricValue),
                                         unit: " \(metric.metricUnit)",
-                                        status: metric.isActive ? status(for: metric) : nil,
+                                        status: metric.isActive ? viewModel.status(for: metric) : nil,
                                         iconName: metric.metricIcon.assetName
                                     )
                                 }
@@ -120,15 +83,14 @@ struct ContentView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button(action: {
-                        isSelectingForDeletion.toggle()
-                        if !isSelectingForDeletion { selectedMetricIDs.removeAll() }
+                        viewModel.toggleSelectionMode()
                     }) {
                         Image(systemName: "xmark")
                             .font(.headline)
                             .foregroundStyle(Color.eggshell)
                     }
-                    .disabled(savedMetrics.isEmpty)
-                    .accessibilityLabel(savedMetrics.isEmpty ? "No metrics to select" : (isSelectingForDeletion ? "Exit selection" : "Select metrics"))
+                    .disabled(viewModel.savedMetrics.isEmpty)
+                    .accessibilityLabel(viewModel.savedMetrics.isEmpty ? "No metrics to select" : (viewModel.isSelectingForDeletion ? "Exit selection" : "Select metrics"))
                 }
                 ToolbarItem(placement: .principal) {
                     Text("Metrics")
@@ -136,40 +98,38 @@ struct ContentView: View {
                         .foregroundStyle(Color.eggshell)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button(action: { showingAddMetric = true }) {
+                    Button(action: { viewModel.showingAddMetric = true }) {
                         Label("Create Metric", systemImage: "plus")
                             .font(.headline)
                             .foregroundStyle(Color.eggshell)
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    if isSelectingForDeletion {
+                    if viewModel.isSelectingForDeletion {
                         Button(role: .destructive) {
-                            showingDeleteConfirmation = true
+                            viewModel.showingDeleteConfirmation = true
                         } label: {
                             Label("Delete", systemImage: "trash")
                         }
                         .font(.headline)
                         .foregroundStyle(Color.red)
-                        .disabled(selectedMetricIDs.isEmpty)
+                        .disabled(viewModel.selectedMetricIDs.isEmpty)
                         .accessibilityLabel("Delete selected metrics")
                     }
                 }
             }
-            .sheet(isPresented: $showingAddMetric) {
+            .sheet(isPresented: $viewModel.showingAddMetric) {
                 AddMetricView { newMetric in
-                    savedMetrics.append(newMetric)
+                    viewModel.addMetric(newMetric)
                 }
             }
             .confirmationDialog(
                 "Delete selected metrics?",
-                isPresented: $showingDeleteConfirmation,
+                isPresented: $viewModel.showingDeleteConfirmation,
                 titleVisibility: .visible
             ) {
                 Button("Delete", role: .destructive) {
-                    savedMetrics.removeAll { selectedMetricIDs.contains($0.id) }
-                    selectedMetricIDs.removeAll()
-                    isSelectingForDeletion = false
+                    viewModel.deleteSelected()
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
@@ -185,7 +145,7 @@ struct GenericMetricTile: View {
     let metricReading: Float
     let unit: String
     let status: MetricStatus?
-    let iconName: String? // Optional per-metric icon, e.g. thermometer, gauge, waveform
+    let iconName: String? // Optional per-metric icon
 
     // Theme
     private let navy = Color.eggshell
@@ -247,7 +207,7 @@ struct GenericMetricTile: View {
                 Spacer()
 
                 if let iconName {
-                    Image(iconName) // Use asset name for custom PNG, or swap to SF Symbol if needed
+                    Image(iconName)
                         .resizable()
                         .scaledToFit()
                         .frame(width: 44, height: 44)
@@ -409,10 +369,6 @@ extension MetricIcon {
         let fallback = String(describing: self)
         return fallback.isEmpty || fallback == "(unknown)" ? nil : fallback
     }
-}
-
-#Preview {
-    ContentView()
 }
 
 
