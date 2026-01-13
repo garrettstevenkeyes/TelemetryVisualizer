@@ -30,6 +30,34 @@ struct ContentView: View {
             ZStack {
                 ScrollView {
                     VStack(spacing: 18) {
+                        // Machine picker (when multiple machines available)
+                        if viewModel.machines.count > 1 {
+                            MachinePicker(
+                                machines: viewModel.machines,
+                                selectedMachineId: viewModel.selectedMachineId
+                            ) { machineId in
+                                Task {
+                                    await viewModel.selectMachine(machineId)
+                                }
+                            }
+                            .padding(.top, 4)
+                        }
+
+                        // Error message
+                        if let error = viewModel.errorMessage {
+                            Text(error)
+                                .font(.footnote)
+                                .foregroundStyle(.red)
+                                .padding()
+                        }
+
+                        // Loading indicator
+                        if viewModel.isLoading {
+                            ProgressView()
+                                .tint(Color.eggshell)
+                                .padding()
+                        }
+
                         if !viewModel.metricSummaries.isEmpty {
                             MetricsOverview(metrics: viewModel.metricSummaries)
                                 .padding(.top, 4)
@@ -135,7 +163,64 @@ struct ContentView: View {
             } message: {
                 Text("This action cannot be undone.")
             }
+            .task {
+                await viewModel.loadFromBackend()
+            }
+            .onDisappear {
+                viewModel.stopPolling()
+            }
         }
+    }
+}
+
+struct MachinePicker: View {
+    let machines: [BackendMachine]
+    let selectedMachineId: String?
+    let onSelect: (String) -> Void
+
+    private let navy = Color.eggshell
+    private let cardFill = Color.white.opacity(0.22)
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Machine")
+                .font(.headline)
+                .foregroundStyle(navy)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(machines) { machine in
+                        Button {
+                            onSelect(machine.machineId)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(machine.name)
+                                    .font(.subheadline.weight(.medium))
+                                if let location = machine.location {
+                                    Text(location)
+                                        .font(.caption)
+                                        .opacity(0.7)
+                                }
+                            }
+                            .foregroundStyle(selectedMachineId == machine.machineId ? Color.white : navy)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(selectedMachineId == machine.machineId ? navy : cardFill)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: 24)
+                .fill(cardFill)
+        )
+        .squiggleCardBorder()
     }
 }
 

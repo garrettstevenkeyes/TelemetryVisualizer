@@ -24,6 +24,10 @@ struct Metric: Codable, Identifiable {
     let metricZonePercentBad: Double
     var isActive: Bool
     var metricValue: Double
+
+    // Backend integration fields (optional - only set when loaded from backend)
+    var machineId: String? = nil
+    var metricKey: String? = nil
 }
 
 enum MetricIcon: String, Codable {

@@ -29,6 +29,7 @@ final class MetricViewModel: ObservableObject {
 
     init(metric: Metric) {
         self.metric = metric
+        stream.configure(machineId: metric.machineId, metricKey: metric.metricKey)
         bind()
     }
 
@@ -49,24 +50,15 @@ final class MetricViewModel: ObservableObject {
             return
         }
         stream.start()
-        let isPreview = ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
-        if !isPreview {
-            stream.startAggregatesLongPolling(metricID: metric.id)
-        }
     }
 
     func stopAll() {
         stream.stop()
-        stream.stopAggregatesLongPolling()
     }
 
     func handleActiveChange(_ isActive: Bool) {
         if isActive {
             stream.start()
-            let isPreview = ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
-            if !isPreview {
-                stream.startAggregatesLongPolling(metricID: metric.id)
-            }
         } else {
             stopAll()
         }

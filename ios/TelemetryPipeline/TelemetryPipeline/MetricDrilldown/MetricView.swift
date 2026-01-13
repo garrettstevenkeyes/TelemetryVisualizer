@@ -275,19 +275,49 @@ struct ZoneDistribution: Codable {
 final class MetricStream: ObservableObject {
     @Published private(set) var readings: [MetricReading] = []
     @Published private(set) var serverDistribution: ZoneDistribution?
+
     private var timer: Timer?
     private var startDate: Date = Date()
     private var pollingTask: Task<Void, Never>?
 
+    // Backend connection info
+    private var machineId: String?
+    private var metricKey: String?
+
+    /// Configure backend connection for real data fetching
+    func configure(machineId: String?, metricKey: String?) {
+        self.machineId = machineId
+        self.metricKey = metricKey
+    }
+
     func start() {
         stop()
+
+        // Use simulation in preview mode or if backend info not configured
+        if TelemetryAPIConfig.isPreview || machineId == nil || metricKey == nil {
+            startSimulation()
+        } else {
+            startBackendPolling()
+        }
+    }
+
+    func stop() {
+        timer?.invalidate()
+        timer = nil
+        pollingTask?.cancel()
+        pollingTask = nil
+    }
+
+    // MARK: - Simulation Mode (for previews)
+
+    private func startSimulation() {
         startDate = Date()
         let capturedStartDate = startDate
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             guard let self else { return }
             let t = Date()
             let i = t.timeIntervalSince(capturedStartDate)
-            // Simulated reading; replace with real incoming data
+            // Simulated reading
             let simulated = 70.0 + sin(i / 3.0) * 15.0 + Double.random(in: -2...2)
             Task { @MainActor in
                 self.append(timestamp: t, value: simulated)
@@ -295,41 +325,74 @@ final class MetricStream: ObservableObject {
         }
     }
 
-    func stop() {
-        timer?.invalidate()
-        timer = nil
+    // MARK: - Backend Polling Mode
+
+    private func startBackendPolling() {
+        guard let machineId = machineId, let metricKey = metricKey else { return }
+
+        // First, fetch historical data
+        Task {
+            await fetchHistory(machineId: machineId, metricKey: metricKey)
+        }
+
+        // Then start polling for latest readings
+        pollingTask = Task { [weak self] in
+            await self?.pollLatestReadings(machineId: machineId, metricKey: metricKey)
+        }
+    }
+
+    private func fetchHistory(machineId: String, metricKey: String) async {
+        do {
+            let history = try await TelemetryAPI.shared.fetchHistory(
+                machineId: machineId,
+                metricKey: metricKey,
+                limit: 500
+            )
+
+            let newReadings = history.map { point in
+                MetricReading(timestamp: point.timestamp, value: point.value)
+            }
+
+            self.readings = newReadings
+        } catch {
+            // History fetch failed - will rely on polling for live data
+            print("Failed to fetch history: \(error)")
+        }
+    }
+
+    private func pollLatestReadings(machineId: String, metricKey: String) async {
+        while !Task.isCancelled {
+            do {
+                let latestReadings = try await TelemetryAPI.shared.fetchLatestReadings(machineId: machineId)
+
+                // Find the reading for our metric
+                if let reading = latestReadings.first(where: { $0.metricKey == metricKey }) {
+                    self.append(timestamp: reading.timestamp, value: reading.value)
+                }
+            } catch {
+                // Polling error - will retry
+                print("Polling error: \(error)")
+            }
+
+            // Poll every 1 second
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+        }
     }
 
     func startAggregatesLongPolling(metricID: UUID) {
-        stopAggregatesLongPolling()
-        pollingTask = Task { [weak self] in
-            await self?.pollAggregates(metricID: metricID)
-        }
+        // Zone distribution is computed client-side from readings
+        // No server endpoint needed for this
     }
 
     func stopAggregatesLongPolling() {
-        pollingTask?.cancel()
-        pollingTask = nil
-    }
-
-    private func pollAggregates(metricID: UUID) async {
-        while !Task.isCancelled {
-            do {
-                let url = URL(string: "https://example.com/api/metrics/\(metricID.uuidString)/distribution")!
-                var request = URLRequest(url: url)
-                request.timeoutInterval = 35 // long-poll timeout
-                let (data, _) = try await URLSession.shared.data(for: request)
-                let dist = try JSONDecoder().decode(ZoneDistribution.self, from: data)
-                self.serverDistribution = dist
-            } catch {
-                // Optional: log or handle error; we'll retry after a short delay
-            }
-            // Backoff to avoid tight loop on quick failures/successes
-            try? await Task.sleep(nanoseconds: 500_000_000)
-        }
+        // No-op since we compute distribution client-side
     }
 
     private func append(timestamp: Date, value: Double) {
+        // Avoid duplicate timestamps
+        if let last = readings.last, last.timestamp >= timestamp {
+            return
+        }
         readings.append(MetricReading(timestamp: timestamp, value: value))
         if readings.count > 600 { readings.removeFirst(readings.count - 600) }
     }

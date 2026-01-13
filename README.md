@@ -1,4 +1,33 @@
-# Telemetry App – Database & Service Overview (Local Dev)
+# TelemetryApp
+
+A real-time telemetry monitoring system with a Python backend service and iOS application.
+
+## Quick Start
+
+### 1. Start the Python Backend
+
+```bash
+cd server
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+```
+
+The server automatically initializes the database, seeds sample data, and starts the simulator.
+
+### 2. Run the iOS App
+
+**Simulator**: Open `ios/TelemetryPipeline/TelemetryPipeline.xcodeproj` in Xcode and run. Connects to `http://127.0.0.1:8000` automatically.
+
+**Physical Device**: Update `TelemetryAPI.swift` with your Mac's LAN IP:
+```swift
+static let baseURL = "http://YOUR_MAC_IP:8000"
+```
+
+---
+
+# Database & Service Overview (Local Dev)
 
 ## Database (SQLite)
 
@@ -83,7 +112,7 @@ curl "http://127.0.0.1:8000/latest?machine_id=m-001"
 
 
  
-## IOS App outline
+## iOS App
 
 <table>
   <tr>
@@ -101,6 +130,44 @@ curl "http://127.0.0.1:8000/latest?machine_id=m-001"
     </td>
   </tr>
 </table>
+
+### Architecture
+
+The iOS app follows **MVVM (Model-View-ViewModel)** architecture:
+
+```
+ios/TelemetryPipeline/TelemetryPipeline/
+├── Models/             # Data models (Metric, MetricStatus)
+├── Services/           # API client (TelemetryAPI)
+├── MainScreen/         # Dashboard (ContentView + ContentViewModel)
+├── MetricDrilldown/    # Detail view with charts (MetricView + MetricViewModel)
+├── AddMetric/          # Metric creation form
+└── BackgroundTheme/    # Custom styling (paper texture, squiggle borders)
+```
+
+### Data Flow
+
+1. On launch, the app fetches machines and metrics from the backend
+2. Latest readings are polled every 1 second for live updates
+3. Metric detail views fetch historical data and display real-time charts
+4. Zone distribution (Good/Okay/Bad) is calculated from readings
+
+### Preview Mode
+
+SwiftUI previews use local simulation - no backend required. The app detects preview mode and generates fake data automatically.
+
+---
+
+## Troubleshooting
+
+**iOS app shows "Network error"**
+- Ensure Python server is running
+- Check firewall allows port 8000
+- Physical devices must be on the same network
+
+**No data in charts**
+- Verify simulator: `curl http://localhost:8000/simulate/status`
+- Start if stopped: `curl -X POST http://localhost:8000/simulate/start`
 
 
 
