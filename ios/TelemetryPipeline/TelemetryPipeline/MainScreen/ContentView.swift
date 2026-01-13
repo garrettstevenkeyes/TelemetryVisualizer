@@ -346,7 +346,7 @@ struct MetricsOverview: View {
                         .transition(.opacity)
                 }
             }
-            .animation(.easeInOut(duration: 0.5), value: metrics)
+            .animation(.easeInOut(duration: 1.0), value: metrics)
         }
         .padding(18)
         .background(

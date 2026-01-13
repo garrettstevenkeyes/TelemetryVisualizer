@@ -151,7 +151,7 @@ final class ContentViewModel: ObservableObject {
 
             // Load locally-persisted metrics and merge with backend metrics
             let localMetrics = loadLocalMetrics(for: machineId)
-            withAnimation(.easeIn(duration: 0.5)) {
+            withAnimation(.easeIn(duration: 1.0)) {
                 savedMetrics = backendMetricsList + localMetrics
             }
 
