@@ -136,7 +136,7 @@ actor TelemetryAPI {
     // MARK: - Machines
 
     func fetchMachines() async throws -> [BackendMachine] {
-        guard !TelemetryAPIConfig.isPreview else {
+        guard await !TelemetryAPIConfig.isPreview else {
             throw TelemetryAPIError.previewMode
         }
         return try await get(endpoint: "/machines")
@@ -145,7 +145,7 @@ actor TelemetryAPI {
     // MARK: - Metrics
 
     func fetchMetrics() async throws -> [BackendMetric] {
-        guard !TelemetryAPIConfig.isPreview else {
+        guard await !TelemetryAPIConfig.isPreview else {
             throw TelemetryAPIError.previewMode
         }
         return try await get(endpoint: "/metrics")
@@ -154,7 +154,7 @@ actor TelemetryAPI {
     // MARK: - Readings
 
     func fetchLatestReadings(machineId: String) async throws -> [LatestReading] {
-        guard !TelemetryAPIConfig.isPreview else {
+        guard await !TelemetryAPIConfig.isPreview else {
             throw TelemetryAPIError.previewMode
         }
         return try await get(endpoint: "/latest?machine_id=\(machineId)")
@@ -167,7 +167,7 @@ actor TelemetryAPI {
         endMs: Int64? = nil,
         limit: Int = 500
     ) async throws -> [ReadingPoint] {
-        guard !TelemetryAPIConfig.isPreview else {
+        guard await !TelemetryAPIConfig.isPreview else {
             throw TelemetryAPIError.previewMode
         }
 
@@ -184,21 +184,21 @@ actor TelemetryAPI {
     // MARK: - Simulator Control
 
     func startSimulator() async throws -> SimulatorStatus {
-        guard !TelemetryAPIConfig.isPreview else {
+        guard await !TelemetryAPIConfig.isPreview else {
             throw TelemetryAPIError.previewMode
         }
         return try await post(endpoint: "/simulate/start")
     }
 
     func stopSimulator() async throws -> SimulatorStatus {
-        guard !TelemetryAPIConfig.isPreview else {
+        guard await !TelemetryAPIConfig.isPreview else {
             throw TelemetryAPIError.previewMode
         }
         return try await post(endpoint: "/simulate/stop")
     }
 
     func fetchSimulatorStatus() async throws -> SimulatorStatus {
-        guard !TelemetryAPIConfig.isPreview else {
+        guard await !TelemetryAPIConfig.isPreview else {
             throw TelemetryAPIError.previewMode
         }
         return try await get(endpoint: "/simulate/status")
@@ -207,7 +207,7 @@ actor TelemetryAPI {
     // MARK: - HTTP Methods
 
     private func get<T: Swift.Decodable>(endpoint: String) async throws -> T {
-        guard let url = URL(string: TelemetryAPIConfig.baseURL + endpoint) else {
+        guard let url = await URL(string: TelemetryAPIConfig.baseURL + endpoint) else {
             throw TelemetryAPIError.invalidURL
         }
 
@@ -235,7 +235,7 @@ actor TelemetryAPI {
     }
 
     private func post<T: Swift.Decodable>(endpoint: String) async throws -> T {
-        guard let url = URL(string: TelemetryAPIConfig.baseURL + endpoint) else {
+        guard let url = await URL(string: TelemetryAPIConfig.baseURL + endpoint) else {
             throw TelemetryAPIError.invalidURL
         }
 
