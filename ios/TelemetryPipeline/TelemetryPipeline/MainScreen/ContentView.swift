@@ -51,18 +51,10 @@ struct ContentView: View {
                                 .padding()
                         }
 
-                        // Loading indicator
-                        if viewModel.isLoading {
-                            ProgressView()
-                                .tint(Color.eggshell)
-                                .padding()
-                        }
-
-                        if !viewModel.metricSummaries.isEmpty {
-                            MetricsOverview(metrics: viewModel.metricSummaries)
-                                .padding(.top, 4)
-                                .transition(.opacity)
-                        }
+                        MetricsOverview(metrics: viewModel.metricSummaries)
+                            .padding(.top, 4)
+                            .frame(minHeight: 120)
+                            .opacity(viewModel.metricSummaries.isEmpty ? 0 : 1)
                         
                         ForEach(viewModel.savedMetrics) { metric in
                             if viewModel.isSelectingForDeletion {
@@ -106,11 +98,18 @@ struct ContentView: View {
                         }
                     }
                     .padding(.horizontal, 18)
-                    .animation(.easeInOut(duration: 0.3), value: viewModel.savedMetrics.map { $0.id })
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .paperBackground()
+            .overlay {
+                if viewModel.isLoading {
+                    ProgressView()
+                        .tint(Color.eggshell)
+                        .transition(.opacity)
+                }
+            }
+            .animation(.easeInOut(duration: 0.3), value: viewModel.isLoading)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -344,8 +343,10 @@ struct MetricsOverview: View {
             FlowLayout(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 8) {
                 ForEach(metrics) { metric in
                     MetricPill(name: metric.name, status: metric.status)
+                        .transition(.opacity)
                 }
             }
+            .animation(.easeInOut(duration: 0.5), value: metrics)
         }
         .padding(18)
         .background(
