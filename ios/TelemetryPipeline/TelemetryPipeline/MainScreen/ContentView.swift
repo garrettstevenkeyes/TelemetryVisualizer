@@ -61,6 +61,7 @@ struct ContentView: View {
                         if !viewModel.metricSummaries.isEmpty {
                             MetricsOverview(metrics: viewModel.metricSummaries)
                                 .padding(.top, 4)
+                                .transition(.opacity)
                         }
                         
                         ForEach(viewModel.savedMetrics) { metric in
@@ -88,6 +89,7 @@ struct ContentView: View {
                                         viewModel.selectedMetricIDs.insert(metric.id)
                                     }
                                 }
+                                .transition(.opacity)
                             } else {
                                 NavigationLink(destination: MetricView(metric: metric)) {
                                     GenericMetricTile(
@@ -99,10 +101,12 @@ struct ContentView: View {
                                     )
                                 }
                                 .buttonStyle(.plain)
+                                .transition(.opacity)
                             }
                         }
                     }
                     .padding(.horizontal, 18)
+                    .animation(.easeInOut(duration: 0.3), value: viewModel.savedMetrics.map { $0.id })
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

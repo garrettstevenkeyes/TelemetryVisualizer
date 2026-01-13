@@ -164,18 +164,6 @@ struct MetricView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .paperBackground()
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Button {
-                    dismiss()
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "chevron.left")
-                        Text("Back")
-                    }
-                }
-            }
-        }
         .task {
             viewModel.startIfNeeded()
         }

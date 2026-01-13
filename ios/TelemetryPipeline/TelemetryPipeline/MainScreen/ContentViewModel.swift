@@ -151,7 +151,9 @@ final class ContentViewModel: ObservableObject {
 
             // Load locally-persisted metrics and merge with backend metrics
             let localMetrics = loadLocalMetrics(for: machineId)
-            savedMetrics = backendMetricsList + localMetrics
+            withAnimation(.easeInOut(duration: 0.3)) {
+                savedMetrics = backendMetricsList + localMetrics
+            }
 
             // Start polling for updates
             startPolling()
@@ -278,6 +280,12 @@ final class ContentViewModel: ObservableObject {
     /// Switch to a different machine
     func selectMachine(_ machineId: String) async {
         guard machineId != selectedMachineId else { return }
+
+        // Fade out current metrics
+        withAnimation(.easeInOut(duration: 0.15)) {
+            savedMetrics = []
+        }
+
         selectedMachineId = machineId
         await loadFromBackend()
     }
