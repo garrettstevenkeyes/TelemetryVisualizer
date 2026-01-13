@@ -41,42 +41,56 @@ struct MetricView: View {
                     .padding(.horizontal, 6)
 
                     // Chart with background bands
-                    Chart {
-                        ForEach(viewModel.readings) { reading in
-                            LineMark(
-                                x: .value("Time", reading.timestamp),
-                                y: .value("Value", reading.value)
+                    ZStack {
+                        Chart {
+                            ForEach(viewModel.readings) { reading in
+                                LineMark(
+                                    x: .value("Time", reading.timestamp),
+                                    y: .value("Value", reading.value)
+                                )
+                                .interpolationMethod(.catmullRom)
+                                .foregroundStyle(Color.eggshell)
+                            }
+                        }
+                        .chartBackground { proxy in
+                            MetricBandsBackground(
+                                proxy: proxy,
+                                goodMin: viewModel.goodMin,
+                                goodMax: viewModel.goodMax,
+                                okayMin: viewModel.okayMin,
+                                okayMax: viewModel.okayMax,
+                                badMin: viewModel.badMin,
+                                badMax: viewModel.badMax,
+                                goodFill: viewModel.goodFill,
+                                okayFill: viewModel.okayFill,
+                                badFill: viewModel.badFill,
+                                openEndedGood: metric.metricGoodRangeMax < metric.metricGoodRangeMin,
+                                openEndedBad: metric.metricBadRangeMin > metric.metricBadRangeMax
                             )
-                            .interpolationMethod(.catmullRom)
-                            .foregroundStyle(Color.eggshell)
+                        }
+                        .chartXAxis {
+                            AxisMarks(values: .automatic(desiredCount: 5)) { _ in
+                                AxisGridLine()
+                                AxisTick()
+                                AxisValueLabel(format: .dateTime.hour().minute().second())
+                            }
+                        }
+                        .chartYAxis { AxisMarks(position: .leading) }
+                        .chartYScale(domain: viewModel.suggestedYDomain())
+                        .frame(height: 220)
+                        .opacity(viewModel.hasData ? 1.0 : 0.3)
+
+                        if !viewModel.hasData && !viewModel.isLoading {
+                            Text("No Data")
+                                .font(.headline)
+                                .foregroundStyle(Color.eggshell.opacity(0.6))
+                        }
+
+                        if viewModel.isLoading {
+                            ProgressView()
+                                .tint(Color.eggshell)
                         }
                     }
-                    .chartBackground { proxy in
-                        MetricBandsBackground(
-                            proxy: proxy,
-                            goodMin: viewModel.goodMin,
-                            goodMax: viewModel.goodMax,
-                            okayMin: viewModel.okayMin,
-                            okayMax: viewModel.okayMax,
-                            badMin: viewModel.badMin,
-                            badMax: viewModel.badMax,
-                            goodFill: viewModel.goodFill,
-                            okayFill: viewModel.okayFill,
-                            badFill: viewModel.badFill,
-                            openEndedGood: metric.metricGoodRangeMax < metric.metricGoodRangeMin,
-                            openEndedBad: metric.metricBadRangeMin > metric.metricBadRangeMax
-                        )
-                    }
-                    .chartXAxis {
-                        AxisMarks(values: .automatic(desiredCount: 5)) { _ in
-                            AxisGridLine()
-                            AxisTick()
-                            AxisValueLabel(format: .dateTime.hour().minute().second())
-                        }
-                    }
-                    .chartYAxis { AxisMarks(position: .leading) }
-                    .chartYScale(domain: viewModel.suggestedYDomain())
-                    .frame(height: 220)
                     .padding(12)
                     .background(
                         RoundedRectangle(cornerRadius: 24)
@@ -85,53 +99,62 @@ struct MetricView: View {
                     .squiggleCardBorder()
 
                     // Zone Distribution
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Zone Distribution")
-                            .font(.headline.weight(.semibold))
-                            .foregroundStyle(Color.eggshell)
+                    ZStack {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Zone Distribution")
+                                .font(.headline.weight(.semibold))
+                                .foregroundStyle(Color.eggshell)
 
-                        HStack(alignment: .center, spacing: 12) {
-                            // Percent list
-                            VStack(alignment: .leading, spacing: 8) {
-                                LegendDot(color: MetricStatus.normal.color, label: "\(viewModel.goodPercentage())% Good")
-                                LegendDot(color: MetricStatus.warning.color, label: "\(viewModel.okayPercentage())% Okay")
-                                LegendDot(color: MetricStatus.alert.color, label: "\(viewModel.badPercentage())% Bad")
+                            HStack(alignment: .center, spacing: 12) {
+                                // Percent list
+                                VStack(alignment: .leading, spacing: 8) {
+                                    LegendDot(color: MetricStatus.normal.color, label: "\(viewModel.goodPercentage())% Good")
+                                    LegendDot(color: MetricStatus.warning.color, label: "\(viewModel.okayPercentage())% Okay")
+                                    LegendDot(color: MetricStatus.alert.color, label: "\(viewModel.badPercentage())% Bad")
+                                }
+
+                                Spacer(minLength: 12)
+
+                                // Pie chart (driven by percentages to match labels; omit zero-percent slices)
+                                let goodP = viewModel.goodPercentage()
+                                let okayP = viewModel.okayPercentage()
+                                let badP = viewModel.badPercentage()
+
+                                Chart {
+                                    if goodP > 0 {
+                                        SectorMark(
+                                            angle: .value("Percent", goodP),
+                                            innerRadius: .ratio(0.6)
+                                        )
+                                        .foregroundStyle(MetricStatus.normal.color)
+                                    }
+
+                                    if okayP > 0 {
+                                        SectorMark(
+                                            angle: .value("Percent", okayP),
+                                            innerRadius: .ratio(0.6)
+                                        )
+                                        .foregroundStyle(MetricStatus.warning.color)
+                                    }
+
+                                    if badP > 0 {
+                                        SectorMark(
+                                            angle: .value("Percent", badP),
+                                            innerRadius: .ratio(0.6)
+                                        )
+                                        .foregroundStyle(MetricStatus.alert.color)
+                                    }
+                                }
+                                .chartLegend(.hidden)
+                                .frame(width: 140, height: 140)
                             }
+                        }
+                        .opacity(viewModel.hasData ? 1.0 : 0.3)
 
-                            Spacer(minLength: 12)
-
-                            // Pie chart (driven by percentages to match labels; omit zero-percent slices)
-                            let goodP = viewModel.goodPercentage()
-                            let okayP = viewModel.okayPercentage()
-                            let badP = viewModel.badPercentage()
-
-                            Chart {
-                                if goodP > 0 {
-                                    SectorMark(
-                                        angle: .value("Percent", goodP),
-                                        innerRadius: .ratio(0.6)
-                                    )
-                                    .foregroundStyle(MetricStatus.normal.color)
-                                }
-
-                                if okayP > 0 {
-                                    SectorMark(
-                                        angle: .value("Percent", okayP),
-                                        innerRadius: .ratio(0.6)
-                                    )
-                                    .foregroundStyle(MetricStatus.warning.color)
-                                }
-
-                                if badP > 0 {
-                                    SectorMark(
-                                        angle: .value("Percent", badP),
-                                        innerRadius: .ratio(0.6)
-                                    )
-                                    .foregroundStyle(MetricStatus.alert.color)
-                                }
-                            }
-                            .chartLegend(.hidden)
-                            .frame(width: 140, height: 140)
+                        if !viewModel.hasData && !viewModel.isLoading {
+                            Text("No Data")
+                                .font(.headline)
+                                .foregroundStyle(Color.eggshell.opacity(0.6))
                         }
                     }
                     .padding(12)
@@ -142,11 +165,20 @@ struct MetricView: View {
                     .squiggleCardBorder()
 
                     // Summary stats
-                    VStack(alignment: .leading, spacing: 10) {
-                        StatRow(label: "Current:", value: viewModel.formattedValue(viewModel.currentReading()))
-                        StatRow(label: "Max:", value: viewModel.formattedValue(viewModel.maxReading()))
-                        StatRow(label: "Min:", value: viewModel.formattedValue(viewModel.minReading()))
-                        StatRow(label: "Average:", value: viewModel.formattedValue(viewModel.averageReading()))
+                    ZStack {
+                        VStack(alignment: .leading, spacing: 10) {
+                            StatRow(label: "Current:", value: viewModel.formattedValue(viewModel.currentReading()))
+                            StatRow(label: "Max:", value: viewModel.formattedValue(viewModel.maxReading()))
+                            StatRow(label: "Min:", value: viewModel.formattedValue(viewModel.minReading()))
+                            StatRow(label: "Average:", value: viewModel.formattedValue(viewModel.averageReading()))
+                        }
+                        .opacity(viewModel.hasData ? 1.0 : 0.3)
+
+                        if !viewModel.hasData && !viewModel.isLoading {
+                            Text("No Data")
+                                .font(.headline)
+                                .foregroundStyle(Color.eggshell.opacity(0.6))
+                        }
                     }
                     .padding(12)
                     .background(
@@ -192,21 +224,37 @@ private struct MetricBandsBackground: View {
 
     // Helpers moved out of the ViewBuilder to avoid declaration errors inside result builders
     private func yPos(_ y: Double, in plotFrame: CGRect) -> CGFloat? {
-        guard let localY = proxy.position(forY: y) else { return nil }
-        // Convert from plot-area local coordinates to the GeometryReader's coordinate space
-        return localY + plotFrame.minY
+        // Reject non-finite input values
+        guard y.isFinite else { return nil }
+        // Obtain local Y from the chart proxy and ensure it's finite
+        guard let localY = proxy.position(forY: y), localY.isFinite else { return nil }
+        let absoluteY = localY + plotFrame.minY
+        // Ensure the final value is finite
+        guard absoluteY.isFinite else { return nil }
+        // Clamp to the plot frame bounds to avoid out-of-bounds rendering leading to invalid sizes
+        return min(max(absoluteY, plotFrame.minY), plotFrame.maxY)
     }
 
     @ViewBuilder
     private func bandView(yTop: CGFloat?, yBottom: CGFloat?, color: Color, plotFrame: CGRect) -> some View {
-        let top = yTop ?? plotFrame.minY
-        let bottom = yBottom ?? plotFrame.maxY
-        let minY = min(top, bottom)
-        let height = abs(bottom - top)
-        Rectangle()
-            .fill(color)
-            .frame(width: plotFrame.width, height: height)
-            .position(x: plotFrame.midX, y: minY + height / 2)
+        // Resolve top and bottom, defaulting to plot frame edges if nil
+        let topVal = yTop ?? plotFrame.minY
+        let bottomVal = yBottom ?? plotFrame.maxY
+
+        // Compute height and validate dimensions
+        let rawHeight = abs(bottomVal - topVal)
+        let height = rawHeight.isFinite ? rawHeight : 0
+        let width = plotFrame.width.isFinite ? plotFrame.width : 0
+
+        if width > 0 && height > 0 {
+            let minY = min(topVal, bottomVal)
+            Rectangle()
+                .fill(color)
+                .frame(width: width, height: height)
+                .position(x: plotFrame.midX, y: minY + height / 2)
+        } else {
+            EmptyView()
+        }
     }
 
     var body: some View {
@@ -214,29 +262,32 @@ private struct MetricBandsBackground: View {
             if let plotAnchor = proxy.plotFrame {
                 let plotFrame = geo[plotAnchor]
 
-                Group {
-                    // GOOD band: closed [goodMin, goodMax] or open-ended (>= goodMin)
-                    if let yGoodMin = yPos(goodMin, in: plotFrame) {
-                        if openEndedGood {
-                            bandView(yTop: nil, yBottom: yGoodMin, color: goodFill, plotFrame: plotFrame)
-                        } else {
-                            let yGoodMax = yPos(goodMax, in: plotFrame)
-                            bandView(yTop: yGoodMax, yBottom: yGoodMin, color: goodFill, plotFrame: plotFrame)
+                // Validate plot frame dimensions before drawing any bands
+                if plotFrame.width.isFinite && plotFrame.height.isFinite && plotFrame.width > 0 && plotFrame.height > 0 {
+                    Group {
+                        // GOOD band: closed [goodMin, goodMax] or open-ended (>= goodMin)
+                        if let yGoodMin = yPos(goodMin, in: plotFrame) {
+                            if openEndedGood {
+                                bandView(yTop: nil, yBottom: yGoodMin, color: goodFill, plotFrame: plotFrame)
+                            } else {
+                                let yGoodMax = yPos(goodMax, in: plotFrame)
+                                bandView(yTop: yGoodMax, yBottom: yGoodMin, color: goodFill, plotFrame: plotFrame)
+                            }
                         }
-                    }
 
-                    // OKAY band: only if valid closed interval
-                    if okayMin <= okayMax, let yOkayMin = yPos(okayMin, in: plotFrame), let yOkayMax = yPos(okayMax, in: plotFrame) {
-                        bandView(yTop: yOkayMax, yBottom: yOkayMin, color: okayFill, plotFrame: plotFrame)
-                    }
-
-                    // BAD band: closed [badMin, badMax] or open-ended (<= badMax)
-                    if openEndedBad {
-                        if let yBadMax = yPos(badMax, in: plotFrame) {
-                            bandView(yTop: nil, yBottom: yBadMax, color: badFill, plotFrame: plotFrame)
+                        // OKAY band: only if valid closed interval
+                        if okayMin <= okayMax, let yOkayMin = yPos(okayMin, in: plotFrame), let yOkayMax = yPos(okayMax, in: plotFrame) {
+                            bandView(yTop: yOkayMax, yBottom: yOkayMin, color: okayFill, plotFrame: plotFrame)
                         }
-                    } else if let yBadMin = yPos(badMin, in: plotFrame), let yBadMax = yPos(badMax, in: plotFrame) {
-                        bandView(yTop: yBadMin, yBottom: yBadMax, color: badFill, plotFrame: plotFrame)
+
+                        // BAD band: closed [badMin, badMax] or open-ended (<= badMax)
+                        if openEndedBad {
+                            if let yBadMax = yPos(badMax, in: plotFrame) {
+                                bandView(yTop: nil, yBottom: yBadMax, color: badFill, plotFrame: plotFrame)
+                            }
+                        } else if let yBadMin = yPos(badMin, in: plotFrame), let yBadMax = yPos(badMax, in: plotFrame) {
+                            bandView(yTop: yBadMin, yBottom: yBadMax, color: badFill, plotFrame: plotFrame)
+                        }
                     }
                 }
             }
@@ -263,6 +314,8 @@ struct ZoneDistribution: Codable {
 final class MetricStream: ObservableObject {
     @Published private(set) var readings: [MetricReading] = []
     @Published private(set) var serverDistribution: ZoneDistribution?
+    @Published private(set) var hasData: Bool = false
+    @Published private(set) var isLoading: Bool = true
 
     private var timer: Timer?
     private var startDate: Date = Date()
@@ -280,6 +333,8 @@ final class MetricStream: ObservableObject {
 
     func start() {
         stop()
+        isLoading = true
+        hasData = false
 
         // Use simulation in preview mode or if backend info not configured
         if TelemetryAPIConfig.isPreview || machineId == nil || metricKey == nil {
@@ -300,6 +355,8 @@ final class MetricStream: ObservableObject {
 
     private func startSimulation() {
         startDate = Date()
+        isLoading = false
+        hasData = true  // Simulation always has data
         let capturedStartDate = startDate
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             guard let self else { return }
@@ -342,9 +399,12 @@ final class MetricStream: ObservableObject {
             }
 
             self.readings = newReadings
+            self.hasData = !newReadings.isEmpty
+            self.isLoading = false
         } catch {
             // History fetch failed - will rely on polling for live data
             print("Failed to fetch history: \(error)")
+            self.isLoading = false
         }
     }
 
@@ -356,6 +416,9 @@ final class MetricStream: ObservableObject {
                 // Find the reading for our metric
                 if let reading = latestReadings.first(where: { $0.metricKey == metricKey }) {
                     self.append(timestamp: reading.timestamp, value: reading.value)
+                    if !self.hasData {
+                        self.hasData = true
+                    }
                 }
             } catch {
                 // Polling error - will retry

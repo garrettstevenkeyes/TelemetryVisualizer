@@ -88,9 +88,11 @@ struct ReadingPoint: Codable, Sendable {
     }
 }
 
-struct SimulatorStatus: Codable, Sendable {
+struct SimulatorStatus: Sendable {
     let running: Bool
 }
+
+nonisolated extension SimulatorStatus: Codable {}
 
 // MARK: - API Errors
 
@@ -123,14 +125,12 @@ actor TelemetryAPI {
     static let shared = TelemetryAPI()
 
     private let session: URLSession
-    private let decoder: Foundation.JSONDecoder
 
     private init() {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30
         config.timeoutIntervalForResource = 60
         self.session = URLSession(configuration: config)
-        self.decoder = Foundation.JSONDecoder()
     }
 
     // MARK: - Machines
@@ -223,7 +223,10 @@ actor TelemetryAPI {
             }
 
             do {
-                return try decoder.decode(T.self, from: data)
+                // Decode off the main actor to avoid isolated conformance issues in Swift 6.
+                let decoder = Foundation.JSONDecoder()
+                let decoded = try decoder.decode(T.self, from: data)
+                return decoded
             } catch {
                 throw TelemetryAPIError.decodingError(error.localizedDescription)
             }
@@ -254,7 +257,10 @@ actor TelemetryAPI {
             }
 
             do {
-                return try decoder.decode(T.self, from: data)
+                // Decode off the main actor to avoid isolated conformance issues in Swift 6.
+                let decoder = Foundation.JSONDecoder()
+                let decoded = try decoder.decode(T.self, from: data)
+                return decoded
             } catch {
                 throw TelemetryAPIError.decodingError(error.localizedDescription)
             }

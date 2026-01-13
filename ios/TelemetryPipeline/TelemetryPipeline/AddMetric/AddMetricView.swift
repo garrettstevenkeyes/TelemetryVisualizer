@@ -25,18 +25,16 @@ struct AddMetricView: View {
                             rangeMin: $viewModel.goodMin,
                             rangeMax: $viewModel.goodMax,
                             type: .good,
-                            disableMax: viewModel.goodOpenEnded,
-                            openEndedBinding: $viewModel.goodOpenEnded,
-                            openEndedLabel: "Good is open-ended (≥ min only)"
+                            minOpenEndedBinding: $viewModel.goodMinOpenEnded,
+                            maxOpenEndedBinding: $viewModel.goodMaxOpenEnded
                         )
                         AddMetricRange(rangeMin: $viewModel.okayMin, rangeMax: $viewModel.okayMax, type: .okay)
                         AddMetricRange(
                             rangeMin: $viewModel.badMin,
                             rangeMax: $viewModel.badMax,
                             type: .bad,
-                            disableMin: viewModel.badOpenEnded,
-                            openEndedBinding: $viewModel.badOpenEnded,
-                            openEndedLabel: "Bad is open-ended (≤ max only)"
+                            minOpenEndedBinding: $viewModel.badMinOpenEnded,
+                            maxOpenEndedBinding: $viewModel.badMaxOpenEnded
                         )
                         PercentBadAlarm(percentBadThreshold: $viewModel.percentBadThreshold)
                     }
@@ -207,19 +205,25 @@ struct AddMetricTopBlock: View {
 }
 
 struct AddMetricRange: View {
-    // Inputs you’ll later send to your backend
+    // Inputs you'll later send to your backend
     @Binding var rangeMin: Float
     @Binding var rangeMax: Float
     let type: RangeType
-    var disableMin: Bool = false
-    var disableMax: Bool = false
-    var openEndedBinding: Binding<Bool>? = nil
-    var openEndedLabel: String = ""
-    
+    var minOpenEndedBinding: Binding<Bool>? = nil
+    var maxOpenEndedBinding: Binding<Bool>? = nil
+
     // Theme colors (match your mock)
     private let navy = Color.eggshell
     private let cardFill = Color.white.opacity(0.22)
-    
+
+    private var disableMin: Bool {
+        minOpenEndedBinding?.wrappedValue ?? false
+    }
+
+    private var disableMax: Bool {
+        maxOpenEndedBinding?.wrappedValue ?? false
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("\(type.rawValue.capitalized) Range")
@@ -233,17 +237,27 @@ struct AddMetricRange: View {
                         .font(.caption)
                         .foregroundStyle(navy)
 
-                    TextField("", value: $rangeMin, format: .number)
-                        .keyboardType(.decimalPad)
-                        .disabled(disableMin)
-                        .accessibilityLabel("Minimum \(type.rawValue) value")
-                        .accessibilityValue("\(rangeMin)")
-                        .padding(.vertical, 10)
-                        .padding(.horizontal, 12)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(navy.opacity(0.45), style: StrokeStyle(lineWidth: 2, dash: [6, 5]))
-                        )
+                    ZStack {
+                        TextField("", value: $rangeMin, format: .number)
+                            .keyboardType(.decimalPad)
+                            .disabled(disableMin)
+                            .opacity(disableMin ? 0 : 1)
+                            .accessibilityLabel("Minimum \(type.rawValue) value")
+                            .accessibilityValue("\(rangeMin)")
+
+                        if disableMin {
+                            Text("−∞")
+                                .foregroundStyle(navy.opacity(0.6))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .accessibilityLabel("Negative infinity")
+                        }
+                    }
+                    .padding(.vertical, 10)
+                    .padding(.horizontal, 12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(navy.opacity(0.45), style: StrokeStyle(lineWidth: 2, dash: [6, 5]))
+                    )
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
@@ -251,24 +265,45 @@ struct AddMetricRange: View {
                         .font(.caption)
                         .foregroundStyle(navy)
 
-                    TextField("", value: $rangeMax, format: .number)
-                        .keyboardType(.decimalPad)
-                        .disabled(disableMax)
-                        .accessibilityLabel("Maximum \(type.rawValue) value")
-                        .accessibilityValue("\(rangeMax)")
-                        .padding(.vertical, 10)
-                        .padding(.horizontal, 12)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(navy.opacity(0.45), style: StrokeStyle(lineWidth: 2, dash: [6, 5]))
-                        )
+                    ZStack {
+                        TextField("", value: $rangeMax, format: .number)
+                            .keyboardType(.decimalPad)
+                            .disabled(disableMax)
+                            .opacity(disableMax ? 0 : 1)
+                            .accessibilityLabel("Maximum \(type.rawValue) value")
+                            .accessibilityValue("\(rangeMax)")
+
+                        if disableMax {
+                            Text("+∞")
+                                .foregroundStyle(navy.opacity(0.6))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .accessibilityLabel("Positive infinity")
+                        }
+                    }
+                    .padding(.vertical, 10)
+                    .padding(.horizontal, 12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(navy.opacity(0.45), style: StrokeStyle(lineWidth: 2, dash: [6, 5]))
+                    )
                 }
             }
-            if let openEndedBinding {
-                Toggle(openEndedLabel, isOn: openEndedBinding)
-                    .font(.footnote)
-                    .tint(navy.opacity(0.8))
+
+            if minOpenEndedBinding != nil || maxOpenEndedBinding != nil {
+                VStack(alignment: .leading, spacing: 8) {
+                    if let minBinding = minOpenEndedBinding {
+                        Toggle("No minimum (−∞)", isOn: minBinding)
+                            .font(.footnote)
+                            .tint(navy.opacity(0.8))
+                    }
+                    if let maxBinding = maxOpenEndedBinding {
+                        Toggle("No maximum (+∞)", isOn: maxBinding)
+                            .font(.footnote)
+                            .tint(navy.opacity(0.8))
+                    }
+                }
             }
+
             Text("Enter the acceptable range for this metric.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)

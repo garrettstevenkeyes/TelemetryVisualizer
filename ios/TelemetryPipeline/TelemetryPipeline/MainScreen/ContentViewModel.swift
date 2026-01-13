@@ -26,6 +26,27 @@ final class ContentViewModel: ObservableObject {
         "localMetrics_\(machineId)"
     }
 
+    // JSON encoder/decoder configured to handle infinity values (used for open-ended ranges)
+    private static let jsonEncoder: JSONEncoder = {
+        let encoder = JSONEncoder()
+        encoder.nonConformingFloatEncodingStrategy = .convertToString(
+            positiveInfinity: "inf",
+            negativeInfinity: "-inf",
+            nan: "nan"
+        )
+        return encoder
+    }()
+
+    private static let jsonDecoder: JSONDecoder = {
+        let decoder = JSONDecoder()
+        decoder.nonConformingFloatDecodingStrategy = .convertFromString(
+            positiveInfinity: "inf",
+            negativeInfinity: "-inf",
+            nan: "nan"
+        )
+        return decoder
+    }()
+
     private func saveLocalMetrics() {
         guard let machineId = selectedMachineId else { return }
 
@@ -36,14 +57,14 @@ final class ContentViewModel: ObservableObject {
             return metric.metricKey == nil || !backendKeys.contains(metric.metricKey ?? "")
         }
 
-        if let encoded = try? JSONEncoder().encode(localMetrics) {
+        if let encoded = try? Self.jsonEncoder.encode(localMetrics) {
             UserDefaults.standard.set(encoded, forKey: userDefaultsKey(for: machineId))
         }
     }
 
     private func loadLocalMetrics(for machineId: String) -> [Metric] {
         guard let data = UserDefaults.standard.data(forKey: userDefaultsKey(for: machineId)),
-              let metrics = try? JSONDecoder().decode([Metric].self, from: data) else {
+              let metrics = try? Self.jsonDecoder.decode([Metric].self, from: data) else {
             return []
         }
         return metrics

@@ -15,8 +15,10 @@ final class AddMetricViewModel: ObservableObject {
     @Published var badMin: Float = 0
     @Published var badMax: Float = 0
     @Published var percentBadThreshold: Float = 0
-    @Published var goodOpenEnded: Bool = false
-    @Published var badOpenEnded: Bool = false
+    @Published var goodMinOpenEnded: Bool = false
+    @Published var goodMaxOpenEnded: Bool = false
+    @Published var badMinOpenEnded: Bool = false
+    @Published var badMaxOpenEnded: Bool = false
 
     private let onSave: (Metric) -> Void
 
@@ -28,8 +30,8 @@ final class AddMetricViewModel: ObservableObject {
     var canSave: Bool {
         // Basic validation: require name and unit, and ensure ranges are valid when not open-ended
         let hasBasics = !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !unit.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        let goodOK = goodOpenEnded || goodMin <= goodMax
-        let badOK = badOpenEnded || badMin <= badMax
+        let goodOK = goodMinOpenEnded || goodMaxOpenEnded || goodMin <= goodMax
+        let badOK = badMinOpenEnded || badMaxOpenEnded || badMin <= badMax
         let okayOK = okayMin <= okayMax
         let percentOK = percentBadThreshold >= 0 && percentBadThreshold <= 100
         return hasBasics && goodOK && badOK && okayOK && percentOK
@@ -42,12 +44,12 @@ final class AddMetricViewModel: ObservableObject {
             metricName: name,
             metricIcon: MetricIcon(rawValue: icon.rawValue) ?? .thermometer,
             metricUnit: unit,
-            metricGoodRangeMin: Double(goodMin),
-            metricGoodRangeMax: goodOpenEnded ? -Double.infinity : Double(goodMax),
+            metricGoodRangeMin: goodMinOpenEnded ? -Double.infinity : Double(goodMin),
+            metricGoodRangeMax: goodMaxOpenEnded ? Double.infinity : Double(goodMax),
             metricOkayRangeMin: Double(okayMin),
             metricOkayRangeMax: Double(okayMax),
-            metricBadRangeMin: badOpenEnded ? Double.infinity : Double(badMin),
-            metricBadRangeMax: Double(badMax),
+            metricBadRangeMin: badMinOpenEnded ? -Double.infinity : Double(badMin),
+            metricBadRangeMax: badMaxOpenEnded ? Double.infinity : Double(badMax),
             metricZonePercentGood: 0,
             metricZonePercentOkay: 0,
             metricZonePercentBad: 0,

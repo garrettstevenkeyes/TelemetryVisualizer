@@ -14,6 +14,8 @@ final class MetricViewModel: ObservableObject {
     // Outputs for the View
     @Published private(set) var readings: [MetricReading] = []
     @Published private(set) var serverDistribution: ZoneDistribution?
+    @Published private(set) var hasData: Bool = false
+    @Published private(set) var isLoading: Bool = true
 
     // Convenience accessors for ranges and colors
     var goodMin: Double { metric.metricGoodRangeMin }
@@ -41,6 +43,14 @@ final class MetricViewModel: ObservableObject {
         stream.$serverDistribution
             .receive(on: RunLoop.main)
             .assign(to: &self.$serverDistribution)
+
+        stream.$hasData
+            .receive(on: RunLoop.main)
+            .assign(to: &self.$hasData)
+
+        stream.$isLoading
+            .receive(on: RunLoop.main)
+            .assign(to: &self.$isLoading)
     }
 
     // Lifecycle controls
