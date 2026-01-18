@@ -20,23 +20,18 @@ final class ContentViewModel: ObservableObject {
 
     private var pollingTask: Task<Void, Never>?
 
-    // MARK: - Persistence
+    // MARK: - Repositories
+
+    private let machineRepository = MachineRepository()
+    private let metricRepository = MetricRepository()
+
+    // MARK: - Legacy Migration Support
 
     private func userDefaultsKey(for machineId: String) -> String {
         "localMetrics_\(machineId)"
     }
 
-    // JSON encoder/decoder configured to handle infinity values (used for open-ended ranges)
-    private static let jsonEncoder: JSONEncoder = {
-        let encoder = JSONEncoder()
-        encoder.nonConformingFloatEncodingStrategy = .convertToString(
-            positiveInfinity: "inf",
-            negativeInfinity: "-inf",
-            nan: "nan"
-        )
-        return encoder
-    }()
-
+    /// JSON decoder for reading legacy UserDefaults data during migration
     private static let jsonDecoder: JSONDecoder = {
         let decoder = JSONDecoder()
         decoder.nonConformingFloatDecodingStrategy = .convertFromString(
@@ -47,27 +42,23 @@ final class ContentViewModel: ObservableObject {
         return decoder
     }()
 
-    private func saveLocalMetrics() {
-        guard let machineId = selectedMachineId else { return }
-
-        // Only save locally-created metrics (those without a backend metricKey from standard set)
-        let localMetrics = savedMetrics.filter { metric in
-            // Backend metrics have standard keys like "temperature", "pressure", "vibration"
-            let backendKeys = ["temperature", "pressure", "vibration"]
-            return metric.metricKey == nil || !backendKeys.contains(metric.metricKey ?? "")
-        }
-
-        if let encoded = try? Self.jsonEncoder.encode(localMetrics) {
-            UserDefaults.standard.set(encoded, forKey: userDefaultsKey(for: machineId))
-        }
-    }
-
-    private func loadLocalMetrics(for machineId: String) -> [Metric] {
+    private func loadLegacyLocalMetrics(for machineId: String) -> [Metric] {
         guard let data = UserDefaults.standard.data(forKey: userDefaultsKey(for: machineId)),
               let metrics = try? Self.jsonDecoder.decode([Metric].self, from: data) else {
             return []
         }
         return metrics
+    }
+
+    private func clearLegacyLocalMetrics(for machineId: String) {
+        UserDefaults.standard.removeObject(forKey: userDefaultsKey(for: machineId))
+    }
+
+    private static let migrationCompletedKey = "CoreDataMigrationCompleted_v1"
+
+    private var isMigrationCompleted: Bool {
+        get { UserDefaults.standard.bool(forKey: Self.migrationCompletedKey) }
+        set { UserDefaults.standard.set(newValue, forKey: Self.migrationCompletedKey) }
     }
 
     // Derived data for overview
@@ -87,14 +78,18 @@ final class ContentViewModel: ObservableObject {
 
     func addMetric(_ metric: Metric) {
         savedMetrics.append(metric)
-        saveLocalMetrics()
+        if let machineId = selectedMachineId {
+            metricRepository.saveMetric(metric, forMachineId: machineId)
+        }
     }
 
     func deleteSelected() {
+        if let machineId = selectedMachineId {
+            metricRepository.deleteMetrics(ids: selectedMetricIDs, machineId: machineId)
+        }
         savedMetrics.removeAll { selectedMetricIDs.contains($0.id) }
         selectedMetricIDs.removeAll()
         isSelectingForDeletion = false
-        saveLocalMetrics()
     }
 
     // MARK: - Business logic
@@ -126,14 +121,45 @@ final class ContentViewModel: ObservableObject {
         return .warning
     }
 
+    // MARK: - Cache-First Loading
+
+    /// Load data from cache first for immediate display
+    func loadFromCache() {
+        // Load cached machines
+        let cachedMachines = machineRepository.fetchCachedMachines()
+        if !cachedMachines.isEmpty {
+            self.machines = cachedMachines
+
+            // Select first machine by default if none selected
+            if selectedMachineId == nil, let firstMachine = cachedMachines.first {
+                selectedMachineId = firstMachine.machineId
+            }
+
+            // Load cached metrics for selected machine
+            if let machineId = selectedMachineId {
+                let cachedMetrics = metricRepository.fetchCachedMetrics(forMachineId: machineId)
+                if !cachedMetrics.isEmpty {
+                    savedMetrics = cachedMetrics
+                }
+            }
+        }
+    }
+
     // MARK: - Backend Integration
 
-    /// Load machines and metrics from the backend service
+    /// Load machines and metrics from the backend service with cache-first strategy
     func loadFromBackend() async {
         // Skip in preview mode
         guard !TelemetryAPIConfig.isPreview else { return }
 
-        isLoading = true
+        // Step 1: Load from cache immediately for fast startup
+        loadFromCache()
+
+        // Step 2: Perform one-time migration from UserDefaults if needed
+        await performMigrationIfNeeded()
+
+        // Step 3: Fetch fresh data from backend in background
+        isLoading = savedMetrics.isEmpty  // Only show loading if no cached data
         errorMessage = nil
 
         do {
@@ -143,6 +169,8 @@ final class ContentViewModel: ObservableObject {
 
             let (fetchedMachines, backendMetrics) = try await (machinesTask, metricsTask)
 
+            // Cache machines
+            machineRepository.cacheMachines(fetchedMachines)
             self.machines = fetchedMachines
 
             // Select first machine by default if none selected
@@ -159,7 +187,7 @@ final class ContentViewModel: ObservableObject {
             // Fetch latest readings for the selected machine
             let latestReadings = try await TelemetryAPI.shared.fetchLatestReadings(machineId: machineId)
 
-            // Create metrics with default ranges based on metric type
+            // Create metrics with default ranges based on metric type, sorted by name
             let backendMetricsList = backendMetrics.map { backendMetric in
                 let latestValue = latestReadings.first { $0.metricKey == backendMetric.metricKey }?.value ?? 0
 
@@ -168,10 +196,16 @@ final class ContentViewModel: ObservableObject {
                     machineId: machineId,
                     currentValue: latestValue
                 )
-            }
+            }.sorted { $0.metricName < $1.metricName }
 
-            // Load locally-persisted metrics and merge with backend metrics
-            let localMetrics = loadLocalMetrics(for: machineId)
+            // Cache backend metrics
+            metricRepository.cacheMetrics(backendMetricsList, forMachineId: machineId)
+
+            // Load local metrics from cache (already migrated), sorted by name
+            let localMetrics = metricRepository.fetchLocalMetrics(forMachineId: machineId)
+                .sorted { $0.metricName < $1.metricName }
+
+            // Update UI with fresh data (backend first, then local - matches cache sort order)
             withAnimation(.easeIn(duration: 1.0)) {
                 savedMetrics = backendMetricsList + localMetrics
             }
@@ -187,6 +221,29 @@ final class ContentViewModel: ObservableObject {
         }
 
         isLoading = false
+    }
+
+    /// Perform one-time migration from UserDefaults to CoreData
+    private func performMigrationIfNeeded() async {
+        guard !isMigrationCompleted else { return }
+
+        // We need machines to be cached first before we can migrate metrics
+        // Wait for machines to be cached
+        let cachedMachines = machineRepository.fetchCachedMachines()
+
+        // For each machine, migrate local metrics from UserDefaults
+        for machine in cachedMachines {
+            let legacyMetrics = loadLegacyLocalMetrics(for: machine.machineId)
+            if !legacyMetrics.isEmpty {
+                for metric in legacyMetrics {
+                    metricRepository.saveMetric(metric, forMachineId: machine.machineId)
+                }
+                // Clear legacy data after successful migration
+                clearLegacyLocalMetrics(for: machine.machineId)
+            }
+        }
+
+        isMigrationCompleted = true
     }
 
     /// Create a Metric from backend data with sensible default ranges
@@ -206,8 +263,11 @@ final class ContentViewModel: ObservableObject {
             icon = .gauge
         }
 
+        // Use a deterministic UUID based on machineId + metricKey for stable identity
+        let stableId = stableUUID(for: machineId, metricKey: backend.metricKey)
+
         return Metric(
-            id: UUID(),
+            id: stableId,
             metricName: backend.displayName,
             metricIcon: icon,
             metricUnit: backend.unit,
@@ -225,6 +285,18 @@ final class ContentViewModel: ObservableObject {
             machineId: machineId,
             metricKey: backend.metricKey
         )
+    }
+
+    /// Generate a stable UUID from machineId and metricKey for consistent identity
+    private func stableUUID(for machineId: String, metricKey: String) -> UUID {
+        let combined = "\(machineId)_\(metricKey)"
+        let hash = combined.utf8.reduce(into: [UInt8](repeating: 0, count: 16)) { result, byte in
+            for i in 0..<16 {
+                result[i] = result[i] &+ byte &+ UInt8(i)
+            }
+        }
+        return UUID(uuid: (hash[0], hash[1], hash[2], hash[3], hash[4], hash[5], hash[6], hash[7],
+                          hash[8], hash[9], hash[10], hash[11], hash[12], hash[13], hash[14], hash[15]))
     }
 
     /// Default ranges based on metric type
@@ -302,13 +374,69 @@ final class ContentViewModel: ObservableObject {
     func selectMachine(_ machineId: String) async {
         guard machineId != selectedMachineId else { return }
 
+        // Stop polling for the old machine
+        stopPolling()
+
         // Fade out current metrics
         withAnimation(.easeOut(duration: 0.4)) {
             savedMetrics = []
         }
 
         selectedMachineId = machineId
-        await loadFromBackend()
+
+        // Load cached metrics immediately for fast switch
+        let cachedMetrics = metricRepository.fetchCachedMetrics(forMachineId: machineId)
+        if !cachedMetrics.isEmpty {
+            withAnimation(.easeIn(duration: 0.3)) {
+                savedMetrics = cachedMetrics
+            }
+        }
+
+        // Fetch fresh data from backend
+        await loadMetricsFromBackend(machineId: machineId)
+    }
+
+    /// Load metrics for a specific machine from backend
+    private func loadMetricsFromBackend(machineId: String) async {
+        guard !TelemetryAPIConfig.isPreview else { return }
+
+        isLoading = savedMetrics.isEmpty
+        errorMessage = nil
+
+        do {
+            // Fetch metrics and latest readings
+            async let metricsTask = TelemetryAPI.shared.fetchMetrics()
+            async let readingsTask = TelemetryAPI.shared.fetchLatestReadings(machineId: machineId)
+
+            let (backendMetrics, latestReadings) = try await (metricsTask, readingsTask)
+
+            // Create metrics with current values, sorted by name
+            let backendMetricsList = backendMetrics.map { backendMetric in
+                let latestValue = latestReadings.first { $0.metricKey == backendMetric.metricKey }?.value ?? 0
+                return createMetric(from: backendMetric, machineId: machineId, currentValue: latestValue)
+            }.sorted { $0.metricName < $1.metricName }
+
+            // Cache and update UI
+            metricRepository.cacheMetrics(backendMetricsList, forMachineId: machineId)
+            let localMetrics = metricRepository.fetchLocalMetrics(forMachineId: machineId)
+                .sorted { $0.metricName < $1.metricName }
+
+            // Backend metrics first, then local metrics (matches cache sort order)
+            withAnimation(.easeIn(duration: 0.5)) {
+                savedMetrics = backendMetricsList + localMetrics
+            }
+
+            // Start polling for the new machine
+            startPolling()
+
+        } catch TelemetryAPIError.previewMode {
+            // Expected in preview mode
+        } catch {
+            errorMessage = error.localizedDescription
+            print("Failed to load metrics for machine \(machineId): \(error)")
+        }
+
+        isLoading = false
     }
 }
 

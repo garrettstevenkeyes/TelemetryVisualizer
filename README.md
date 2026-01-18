@@ -6,7 +6,7 @@ A real-time telemetry monitoring iOS application.
 
 ## Project Overview
 
-This application provides a live metrics dashboard for monitoring various aspects of industrial machines, from temperature sensors to noise levels. Operators can monitor an array of machines using custom-defined metrics for each device, enabling proactive performance management and early anomaly detection.
+This application provides a live metrics dashboard for monitoring various aspects of industrial machines, from temperature sensors to noise levels. Operators can monitor an array of machines using custom-defined metrics for each device, enabling proactive performance management and early detection of anomalies.
 
 ### Project Goals
 
@@ -57,6 +57,9 @@ This project explores:
 
 - Implements **MVVM (Model-View-ViewModel)** architecture for clean separation of concerns
 - Uses observable properties to decouple UI updates from business logic
+- **Core Data** used for local caching of machines and metric definitions
+  - Cached data is loaded immediately on launch
+  - API refreshes update Core Data in the background
 - HTTP polling (1-second intervals) for local development simplicity
 
 ### Backend Service (FastAPI + Python)
@@ -72,6 +75,26 @@ This project explores:
 
 ---
 
+## Design Decisions
+
+### Information density and navigation
+
+The dashboard is designed to give users a fast understanding of machine status without overwhelming them. The main view focuses on high‑level metrics with a dedicated status section for quick scanning, while detailed information is available through drill‑in views.
+
+### Visual tone and background styling
+
+Telemetry dashboards often involve large volumes of numbers and frequently changing indicators. The background color and paper‑style theme were intentionally chosen to feel more casual and approachable. A softer background reduces eye strain compared to a pure white canvas and helps make the interface feel less intimidating during prolonged use.
+
+### Progressive disclosure of detail
+
+Rather than displaying all information at once, the UI emphasizes progressive disclosure. Users can engage with high‑level signals first and explore deeper context only when needed, reducing cognitive load.
+
+### Real‑time transport tradeoff
+
+HTTP polling was selected for development simplicity and debuggability. The architecture allows this to be replaced with WebSockets in the future without altering the overall MVVM structure.
+
+---
+
 ## Quick Start
 
 ### Backend
@@ -82,6 +105,16 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+```
+
+start the simulator
+`curl -X POST http://127.0.0.1:8000/simulate/start`
+
+verify data is flowing
+
+```bash
+curl http://127.0.0.1:8000/machines
+curl "http://127.0.0.1:8000/latest?machine_id=m-001"
 ```
 
 ### iOS App
@@ -132,9 +165,10 @@ ios/TelemetryPipeline/TelemetryPipeline/
 ## Data Flow
 
 1. Fetch machines and metric definitions
-2. Poll latest readings
-3. Load historical data on demand
-4. Compute zone distribution client-side
+2. Load cached machines and metrics from Core Data
+3. Poll latest readings
+4. Load historical data on demand
+5. Compute zone distribution client-side
 
 ---
 
@@ -144,6 +178,7 @@ ios/TelemetryPipeline/TelemetryPipeline/
 | ----------------- | ----------------- | ------------------------------- |
 | iOS App           | SwiftUI + Combine | Same using WebSockets           |
 | Architecture      | MVVM              | Same                            |
+| Local Persistence | Core Data         | Same                            |
 | Backend           | FastAPI (Python)  | FastAPI + Docker                |
 | Database          | SQLite            | PostgreSQL                      |
 | Real-time Updates | HTTP Polling (1s) | WebSockets / Server-Sent Events |

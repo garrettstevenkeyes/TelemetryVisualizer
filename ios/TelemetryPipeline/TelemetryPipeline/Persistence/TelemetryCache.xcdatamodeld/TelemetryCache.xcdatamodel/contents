@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="23231" systemVersion="24D60" minimumToolsVersion="Automatic" sourceLanguage="Swift" usedWithSwiftData="NO" userDefinedModelVersionIdentifier="">
+    <entity name="CachedMachine" representedClassName="CachedMachine" syncable="YES" codeGenerationType="class">
+        <attribute name="lastUpdated" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="location" optional="YES" attributeType="String"/>
+        <attribute name="machineId" attributeType="String"/>
+        <attribute name="name" attributeType="String"/>
+        <attribute name="status" attributeType="String" defaultValueString="offline"/>
+        <relationship name="metrics" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="CachedMetric" inverseName="machine" inverseEntity="CachedMetric"/>
+        <uniquenessConstraints>
+            <uniquenessConstraint>
+                <constraint value="machineId"/>
+            </uniquenessConstraint>
+        </uniquenessConstraints>
+    </entity>
+    <entity name="CachedMetric" representedClassName="CachedMetric" syncable="YES" codeGenerationType="class">
+        <attribute name="badRangeMax" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="badRangeMin" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="displayName" attributeType="String"/>
+        <attribute name="goodRangeMax" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="goodRangeMin" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="iconType" attributeType="String" defaultValueString="gauge"/>
+        <attribute name="isActive" attributeType="Boolean" defaultValueString="YES" usesScalarValueType="YES"/>
+        <attribute name="isLocalOnly" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="lastUpdated" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="lastValue" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="localId" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="metricKey" attributeType="String"/>
+        <attribute name="okayRangeMax" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="okayRangeMin" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="unit" attributeType="String"/>
+        <attribute name="zonePercentBad" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="zonePercentGood" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="zonePercentOkay" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <relationship name="machine" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CachedMachine" inverseName="metrics" inverseEntity="CachedMachine"/>
+    </entity>
+</model>
